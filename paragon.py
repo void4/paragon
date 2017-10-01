@@ -2,7 +2,7 @@ from bitarray import bitarray
 from pprint import PrettyPrinter
 from copy import deepcopy
 from time import sleep
-
+from colors import color
 from asm import read, write, ldict, IL, bits2int, bl, OACTIVE, ODEPTH, OGAS, OTOTALGAS, OIC, OLENCODE, OCODE
 
 def nasm(s):
@@ -26,6 +26,8 @@ binary = write(ldict(*[-1, 0, 200, 0, 0, code, write(subprocess)]))
 #mirror would require extra instructions, but would make outsourcing easier
 #don't need these instructions!
 #program should not be able to externalize costs (memory management etc.) without incurring gas costs
+
+# Never forget additional +IL offset after code (statelen field)
 
 def isint(n):
 	try:
@@ -56,6 +58,10 @@ def step(binary):
 		current = read(binary[offset:])
 	
 	print("OFFSET %i" % offset)
+	print("GAS %i" % current["gas"])
+	
+	offsetmax = offset+OCODE+len(current["code"])+IL+len(current["state"])
+	
 	if current["gas"] == 0:
 		if parent is None:
 			print("Exiting main, out of gas")
@@ -99,13 +105,16 @@ def step(binary):
 	wb(binary, offset+OIC, rb(binary, offset+OIC)+1)
 	wb(binary, offset+OGAS, rb(binary, offset+OGAS)-1)
 	wb(binary, offset+OTOTALGAS, rb(binary, offset+OTOTALGAS)+1)
+	
+	bins = binary.to01()
+	bins = bins[:offset]+color(bins[offset:offsetmax], bg="green")+bins[offsetmax:]
+	print(bins)
 	return binary
 
 import os
 while True:
-	binary = step(binary)
 	os.system("clear")
-	print(binary)
+	binary = step(binary)
 	
 	#state = read(binary)
 	#state["state"] = read(state["state"])
