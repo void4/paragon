@@ -5,6 +5,13 @@ from time import sleep
 from colors import color
 from asm import read, write, ldict, IL, bits2int, bl, OACTIVE, ODEPTH, OGAS, OTOTALGAS, OIC, OLENCODE, OCODE
 
+def isint(n):
+	try:
+		int(n)
+		return True
+	except ValueError:
+		return False
+
 def nasm(s):
 	code = bitarray()
 	code.frombytes(s.encode("ascii"))
@@ -22,20 +29,6 @@ gas 0 20
 active 0
 jump 0""")
 binary = write(ldict(*[-1, 0, 200, 0, 0, code, write(subprocess)]))
-
-#child mirror or in memory?
-#mirror would require extra instructions, but would make outsourcing easier
-#don't need these instructions!
-#program should not be able to externalize costs (memory management etc.) without incurring gas costs
-
-# Never forget additional +IL offset after code (statelen field)
-
-def isint(n):
-	try:
-		int(n)
-		return True
-	except ValueError:
-		return False
 
 # binary, offset, value
 def wb(b, o, v):
@@ -56,6 +49,7 @@ def srb(b, o, m):
 def step(binary):
 	state = read(binary)
 	
+	# Program should not be able to externalize costs (memory management etc.) without incurring gas costs
 	parent = None
 	current = state
 	offset = 0
@@ -91,7 +85,7 @@ def step(binary):
 		else:
 			wb(binary, parentoffset+OACTIVE, -1)
 			print("No instructions, returning to parent")
-			#give parent some form of notice?
+			# Give parent some form of notice? Should this cost gas?
 			return binary
 	
 	OSTATE = offset+OCODE+len(current["code"])+IL
@@ -115,9 +109,9 @@ def step(binary):
 		wb(binary, offset+OACTIVE, int(instra[1]))
 	else:
 		print("Unknown instruction")
-		#should not exit here, because subprocess could crash parent
+		# Should not exit here, because subprocess could crash parent
 		
-	#Watch over/underflows!
+	# Watch over/underflows!
 	wb(binary, offset+OIC, rb(binary, offset+OIC)+1)
 	wb(binary, offset+OGAS, rb(binary, offset+OGAS)-1)
 	wb(binary, offset+OTOTALGAS, rb(binary, offset+OTOTALGAS)+1)
