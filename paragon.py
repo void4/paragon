@@ -16,8 +16,9 @@ jump 0""")
 
 subprocess = ldict(*[-1, 1, 0, 0, 0, code, bitarray()])
 
+#store gas in outer layer?
 code = nasm("""nop
-gas 0 100
+gas 0 20
 active 0
 jump 0""")
 binary = write(ldict(*[-1, 0, 200, 0, 0, code, write(subprocess)]))
@@ -43,6 +44,14 @@ def wb(b, o, v):
 # binary, offset
 def rb(b, o):
 	return bits2int(b[o:o+IL])
+	
+#Safe Write Bit: binary, offset, maximum, value
+def swb(b, o, m, v):
+	b[min(o,m):min(o+IL,m)] = bl(v)
+
+#Safe Read Bit: binary, offset, maximum
+def srb(b, o, m):
+	return bits2int(b[min(o,m):min(o+IL,m)])
 
 def step(binary):
 	state = read(binary)
@@ -57,7 +66,7 @@ def step(binary):
 		offset += current["active"]+OCODE+len(current["code"])+IL
 		current = read(binary[offset:])
 	
-	print("OFFSET %i" % offset)
+	print("LEN %i OFFSET %i" % (len(binary), offset))
 	print("GAS %i" % current["gas"])
 	
 	offsetmax = offset+OCODE+len(current["code"])+IL+len(current["state"])
@@ -85,23 +94,30 @@ def step(binary):
 			#give parent some form of notice?
 			return binary
 	
+	OSTATE = offset+OCODE+len(current["code"])+IL
+	OSTATEMAX = OSTATE+len(current["state"])
+	
 	instra = instr.split()
 	print("INSTR:", instr)
 	if instr == "nop":
 		pass
+	elif instr[0]=="set":
+		swb(binary, OSTATE, OSTATEMAX, int(instra[1]))
 	elif instra[0]=="jump":
-		wb(binary, offset+OIC, int(instra[1])-1)
+		swb(binary, offset+OIC, OSTATEMAX, int(instra[1])-1)
 	elif instra[0]=="gas":
-		wb(binary, offset+OGAS, rb(binary, OGAS)-int(instra[2]))#check for underflow
-		childoffset = IL+OCODE+len(current["code"])+int(instra[1])
-		wb(binary, childoffset+OGAS, rb(binary, childoffset+OGAS)+int(instra[2]))
+		currentgas = rb(binary, OGAS)
+		if currentgas-int(instra[2])>0:#>=?
+			wb(binary, offset+OGAS, currentgas-int(instra[2]))#check for underflow
+			childoffset = offset+IL+OCODE+len(current["code"])+int(instra[1])
+			wb(binary, childoffset+OGAS, rb(binary, childoffset+OGAS)+int(instra[2]))
 	elif instra[0]=="active":
 		wb(binary, offset+OACTIVE, int(instra[1]))
 	else:
 		print("Unknown instruction")
 		#should not exit here, because subprocess could crash parent
 		
-	
+	#Watch over/underflows!
 	wb(binary, offset+OIC, rb(binary, offset+OIC)+1)
 	wb(binary, offset+OGAS, rb(binary, offset+OGAS)-1)
 	wb(binary, offset+OTOTALGAS, rb(binary, offset+OTOTALGAS)+1)
