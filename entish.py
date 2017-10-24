@@ -84,27 +84,21 @@ def step(program):
 
 
 def run(program, steps):
-	shell = interpreter = odict[
-		"steps": 0,
-		"index": 0,
-		"memory": ["COPY"],
-	]
 
-	shell.steps = steps
-	shell.memory.append(program)
+	program.steps = steps
 	iterations = 0
 	os.system("clear")
 	while True:
 		print("ITER %i\n" % iterations)
 		iterations += 1
-		pretty(shell)
-		shell = step(shell)
+		pretty(program)
+		program = step(program)
 		input()
 		os.system("clear")
-		if shell["steps"] == 0:
+		if program["steps"] == 0:
 			break
 
-	pretty(shell)
+	pretty(program)
 	print("Exiting main (OutOfGas).")
 	return program
 
