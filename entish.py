@@ -9,7 +9,7 @@ class OrderedAttributeDict(OrderedDict):
 	__setattr__ = dict.__setitem__
 	__delattr__ = dict.__delitem__
 
-#Allows to create ordered dicts with simple syntax
+# Allows to create ordered dicts with simple syntax
 # Evil hack 2 from
 #https://stackoverflow.com/questions/7878933/override-the-notation-so-i-get-an-ordereddict-instead-of-a-dict
 class _OrderedDictMaker(object):
@@ -22,12 +22,13 @@ class _OrderedDictMaker(object):
 
 odict = _OrderedDictMaker()
 
+# Pretty prints a dictionary
 def pretty(d, indent=0):
 	for key, value in d.items():
 		print('\t' * indent + str(key), end="")
 		if isinstance(value, dict):
 			pretty(value, indent+1)
-		elif isinstance(value, list):# and all([isinstance(v, dict) for v in value]):
+		elif isinstance(value, list):
 			print("")
 			for v in value:
 				if isinstance(v, dict):
@@ -46,20 +47,15 @@ child = odict[
 middle = odict[
 	"steps": 0,
 	"index": 0,
-	"memory": ["COPY 5", child, "JUMP"],
+	"memory": ["COPY 6", child, "JUMP"],
 ]
 
-program = odict[
-	"steps": 50,
-	"index": 0,
-	"memory": ["COPY", middle],
-]
-
-
+# Stateless step function
 def step(program):
+
 	program.steps -= 1
 	instr = program.memory[program.index]
-	print("INSTR", instr if not isinstance(instr, dict) else {})
+	print("INSTR", instr if not isinstance(instr, dict) else ">")
 	if isinstance(instr, dict):
 		if instr["steps"] == 0:
 			program.index += 1
@@ -85,17 +81,31 @@ def step(program):
 
 	return program
 
-iterations = 0
-os.system("clear")
-while True:
-	print("ITER %i\n" % iterations)
-	iterations += 1
-	pretty(program)
-	program = step(program)
-	input()
-	os.system("clear")
-	if program["steps"] == 0:
-		break
 
-pretty(program)
-print("Exiting main (OutOfGas).")
+
+def run(program, steps):
+	shell = interpreter = odict[
+		"steps": 0,
+		"index": 0,
+		"memory": ["COPY"],
+	]
+
+	shell.steps = steps
+	shell.memory.append(program)
+	iterations = 0
+	os.system("clear")
+	while True:
+		print("ITER %i\n" % iterations)
+		iterations += 1
+		pretty(shell)
+		shell = step(shell)
+		input()
+		os.system("clear")
+		if shell["steps"] == 0:
+			break
+
+	pretty(shell)
+	print("Exiting main (OutOfGas).")
+	return program
+
+run(middle, 20)
