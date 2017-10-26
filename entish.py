@@ -13,12 +13,12 @@ class OrderedAttributeDict(OrderedDict):
 # Evil hack 2 from
 #https://stackoverflow.com/questions/7878933/override-the-notation-so-i-get-an-ordereddict-instead-of-a-dict
 class _OrderedDictMaker(object):
-    def __getitem__(self, keys):
-        if not isinstance(keys, tuple):
-            keys = (keys,)
-        assert all(isinstance(key, slice) for key in keys)
+	def __getitem__(self, keys):
+		if not isinstance(keys, tuple):
+			keys = (keys,)
+		assert all(isinstance(key, slice) for key in keys)
 
-        return OrderedAttributeDict([(k.start, k.stop) for k in keys])
+		return OrderedAttributeDict([(k.start, k.stop) for k in keys])
 
 odict = _OrderedDictMaker()
 
@@ -38,43 +38,78 @@ def pretty(d, indent=0):
 		else:
 			print('\t' * (indent+1) + str(value))
 
-child = odict[
-	"steps": 0,
-	"index": 0,
-	"memory": ["ADD", "JUMP"],
-]
+code = """
+GAS
+GAS
+ADD
+MOD
+IFZERO
+GAS
+JUMP
+"""
 
-middle = odict[
-	"steps": 0,
+program = odict[
+	"gas": 0,
 	"index": 0,
-	"memory": ["COPY 6", child, "JUMP"],
+	"code": code.strip().split("\n"),
+	"stack": [],
+	"memory": [],
 ]
-
 # Stateless step function
 def step(program):
 
-	program.steps -= 1
-	instr = program.memory[program.index]
+	program.gas -= 1
+	instr = program.code[program.index]
 	print("INSTR", instr if not isinstance(instr, dict) else ">")
 	if isinstance(instr, dict):
-		if instr["steps"] == 0:
+		if instr["gas"] == 0:
 			program.index += 1
 		else:
-			program.memory[program.index] = step(instr)
-	elif instr == "ADD":
-		program.memory.append(program.steps)
+			program.code[program.index] = step(instr)
+	elif instr == "GAS":
+		program.memory.append(program.gas)
 		program.index += 1
+	elif instr == "ADD":
+		if len(program.stack) >= 2:
+			top = program.stack.pop()
+			program.stack[-1] += top
+		program.index += 1
+	elif instr == "SUB":
+		if len(program.stack) >= 2:
+			top = program.stack.pop()
+			program.stack[-1] -= top
+		program.index += 1
+	elif instr == "MOD":
+		if len(program.stack) >= 2:
+			top = program.stack.pop()
+			program.stack[-1] %= top
+		program.index += 1
+	elif instr == "IFZERO":
+		split = instr.split(" ")
+		if len(split) == 2:
+			target = int(split[1])
+		else:
+			target = 0
+		if len(program.stack) > 0 and program.stack.pop() == 0:
+			program.index = target
+		else:
+			program.index += 1
 	elif instr == "JUMP":
-		program.index = 0
+		split = instr.split(" ")
+		if len(split) == 2:
+			target = int(split[1])
+		else:
+			target = 0
+		program.index = target
 	elif instr.startswith("COPY"):
 		split = instr.split(" ")
 		if len(split) == 2:
 			increase = int(split[1])
 		else:
-			increase = program.steps
-		nextcell = program.memory[program.index+1]
+			increase = program.gas
+		nextcell = program.code[program.index+1]
 		if isinstance(nextcell, dict):
-			nextcell.steps = min(program.steps, increase)
+			nextcell.gas = min(program.gas, increase)
 		program.index += 1
 	else:
 		print("Invalid instruction", instr)
@@ -83,9 +118,9 @@ def step(program):
 
 
 
-def run(program, steps):
+def run(program, gas):
 
-	program.steps = steps
+	program.gas = gas
 	iterations = 0
 	os.system("clear")
 	while True:
@@ -95,11 +130,11 @@ def run(program, steps):
 		program = step(program)
 		input()
 		os.system("clear")
-		if program["steps"] == 0:
+		if program["gas"] == 0:
 			break
 
 	pretty(program)
 	print("Exiting main (OutOfGas).")
 	return program
 
-run(middle, 20)
+run(program, 40)
