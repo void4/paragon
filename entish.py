@@ -1,42 +1,6 @@
-from collections import OrderedDict
 import os
 
-# Allows for dot dict access, but is also ordered (but not nested yet)
-# Evil hack 1 from
-#https://stackoverflow.com/questions/2352181/how-to-use-a-dot-to-access-members-of-dictionary
-class OrderedAttributeDict(OrderedDict):
-	__getattr__ = dict.__getitem__
-	__setattr__ = dict.__setitem__
-	__delattr__ = dict.__delitem__
-
-# Allows to create ordered dicts with simple syntax
-# Evil hack 2 from
-#https://stackoverflow.com/questions/7878933/override-the-notation-so-i-get-an-ordereddict-instead-of-a-dict
-class _OrderedDictMaker(object):
-	def __getitem__(self, keys):
-		if not isinstance(keys, tuple):
-			keys = (keys,)
-		assert all(isinstance(key, slice) for key in keys)
-
-		return OrderedAttributeDict([(k.start, k.stop) for k in keys])
-
-odict = _OrderedDictMaker()
-
-# Pretty prints a dictionary
-def pretty(d, indent=0):
-	for key, value in d.items():
-		print('\t' * indent + str(key), end="")
-		if isinstance(value, dict):
-			pretty(value, indent+1)
-		elif isinstance(value, list):
-			print("")
-			for v in value:
-				if isinstance(v, dict):
-					pretty(v, indent+1)
-				else:
-					print("\t" * (indent+1) + str(v)	)
-		else:
-			print('\t' * (indent+1) + str(value))
+from utils import odict, pretty
 
 code = """
 GAS
@@ -49,7 +13,7 @@ JUMP
 """
 
 program = odict[
-	"gas": 0,
+	"gas": 0,#should this be in parent program?
 	"index": 0,
 	"code": code.strip().split("\n"),
 	"stack": [],
@@ -65,8 +29,9 @@ def step(program):
 		if instr["gas"] == 0:
 			program.index += 1
 		else:
+            # add indirection penalty?
 			program.code[program.index] = step(instr)
-	elif instr == "GAS":
+	elif instr == "GAS":#not deterministic?
 		program.memory.append(program.gas)
 		program.index += 1
 	elif instr == "ADD":
