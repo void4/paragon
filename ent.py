@@ -5,12 +5,14 @@ from utils import odict, pretty
 #only bit32?
 
 code = """
-ALLOC 2
+PUSH 10
+ALLOC
 GAS
-WRITE 0
-READ 0
+WRITE
+READ
 GAS
 ADD
+PUSH 2
 JUMP
 """
 
@@ -76,41 +78,46 @@ def statestep(program):
 			program.stack[-1] += top
 			program.mem += 1
 		program.index += 1
-	elif instr.startswith("ALLOC "):
-		alloc = int(instr.split(" ")[1])
-		if program.mem < alloc:
-			program.status = OUTOFMEM
-		else:
-			program.mem -= alloc
-			program.memory += [0 for i in range(alloc)]#can only alloc 1 byte at a time?
+	elif instr == "ALLOC":
+		if len(program.stack) < 1:
 			program.index += 1
-	elif instr.startswith("WRITE"):
-		skip = False
-		if " " in instr:
-			addr = int(instr.split(" ")[1])
 		else:
-			if len(program.stack) < 2:
-				skip = True
+			alloc = program.stack[-1]
+			if program.mem < alloc:
+				program.status = OUTOFMEM
 			else:
-				addr = program.stack[-1]
+				program.mem -= alloc
+				program.memory += [0 for i in range(alloc)]#can only alloc 1 byte at a time?
+				program.index += 1
+	elif instr.startswith("PUSH "):
+		value = int(instr.split(" ")[1])
+		if program.mem > 0:
+			program.mem -= 1
+			program.index += 1
+			program.stack.append(value)
+		else:
+			program.status = OUTOFMEM
+	elif instr == "POP":
+		if len(program.stack) > 0:
+			program.stack.pop()
+			program.mem += 1
+		program.index += 1
+	elif instr == "WRITE":
+		if len(program.stack) < 2:
+			pass
+		else:
+			addr = program.stack[-2]
 
-		if not skip:
 			if addr >= len(program.memory):
 				pass#???
 			else:
 				program.memory[addr] = program.stack[-1]
 		program.index += 1
-	elif instr.startswith("READ"):
-		skip = False
-		if " " in instr:
-			addr = int(instr.split(" ")[1])
+	elif instr == "READ":
+		if len(program.stack) < 2:
+			program.index += 1
 		else:
-			if len(program.stack) < 2:
-				skip = True
-				program.index += 1
-			else:
-				addr = program.stack[-1]
-		if not skip:
+			addr = program.stack[-1]
 			if addr >= len(program.memory):
 				program.index += 1
 			else:
@@ -122,9 +129,10 @@ def statestep(program):
 					program.index += 1
 
 	elif instr == "JUMP":
-		split = instr.split(" ")
-		if len(split) == 2:
-			target = int(split[1])
+		if len(program.stack) > 0:
+			target = program.stack[-1]
+			program.stack.pop()
+			program.mem += 1
 		else:
 			target = 0
 		program.index = target
@@ -134,7 +142,7 @@ def statestep(program):
 	return program
 
 
-
+from time import sleep
 def run(program, gas, mem=0):
 
 	program.gas = gas
@@ -146,13 +154,14 @@ def run(program, gas, mem=0):
 		iterations += 1
 		pretty(program)
 		program = step(program)
-		input()
+		#input()
+		sleep(0.1)
 		os.system("clear")
-		if program["gas"] == 0 or program["status"] > 0:
+		if program["status"] > 0:#program["gas"] == 0 or 
 			break
 
 	pretty(program)
 	print("Exiting main (%s)." % STATUS[program.status])
 	return program
 
-run(program, 40, 10)
+run(program, 100, 100)
