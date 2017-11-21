@@ -73,7 +73,7 @@ def step(program):
 	program[S_GAS] -= 1
 
 	instr = program[S_CODE][program[S_INDEX]]
-	print("\nINSTR", instr if not isinstance(instr, dict) else ">")
+	#print("\nINSTR", instr if not isinstance(instr, dict) else ">")
 	if instr[0] == I_PUSH:
 		value = instr[1]
 		if program[S_MEM] > 0:
@@ -168,7 +168,7 @@ def step(program):
 			#print("SUBCOMP STATUS", status)
 
 			if program[S_STATUS] == E_SUBCOMP:
-				if len(program[S_STACK])<1:
+				if len(program[S_STACK])<1:#technically this is always false
 					program[S_INDEX] += 1
 				else:
 					subcomp = program[S_STACK][-1]
@@ -188,8 +188,15 @@ def step(program):
 						program[S_MEM] += 1
 						program[S_INDEX] += 1
 						program[S_STATUS] = E_NORMAL
+						program[S_MEMORY][subcomp][S_STATUS] = E_FROZEN#ignore this? (no additional memory write necessary)
 			else:
-				program[S_STATUS] = E_SUBCOMP
+				if len(program[S_STACK])<1:#technically this is always false
+					program[S_INDEX] += 1
+				else:
+					program[S_STATUS] = E_SUBCOMP
+					subcomp = program[S_STACK][-1]
+					program[S_MEMORY][subcomp][S_STATUS] = E_NORMAL
+					program[S_MEMORY][subcomp][S_MEM] = min(program[S_MEM], program[S_MEMORY][subcomp][S_MEM])
 
 	else:
 		print("Invalid instruction", instr)
