@@ -194,7 +194,7 @@ def step(program):
 		else:
 			if program[S_STATUS] == E_SUBCOMP:
 				subcomp = top()
-				status = program[S_MEMORY+subcomp+S_STATUS]
+				status = program[program[S_MEMORY]+subcomp+S_STATUS]
 				#print(status)
 				if status in [E_FROZEN, E_NORMAL]:
 						# add indirection penalty?
@@ -204,13 +204,15 @@ def step(program):
 						print("PRELEN", binarylen, len(binary))#should be the same
 						newbinary = step(binary)
 						print("POSTLEN", len(newbinary))
-						program = program[:program[S_MEMORY]+subcomp]+newbinary+program[program[S_MEMORY]+subcomp+binarylen]#have to adjust
+						pre = program[:program[S_MEMORY]+subcomp]
+						post = program[program[S_MEMORY]+subcomp+binarylen:]
+						program = pre+newbinary+post
 						program[S_END] += len(newbinary)-binarylen
 						#adjust S_MEM here for parent as well?
 						#print("STACK", program[S_STACK])
 				else:#good to have state field at index 0
 					# Subcomp has halted
-					#print("HALT", program[S_INDEX])
+					print("HALT", status)
 					pop()#Pop subcomp address#still have to check here, grandparent could have modified...
 					next()
 					program[S_STATUS] = E_NORMAL
