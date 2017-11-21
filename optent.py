@@ -3,20 +3,8 @@ import os
 #only bit32?
 
 I_PUSH, I_POP, I_DUP, I_READ, I_WRITE, I_JUMP, I_ADD, I_ALLOC, I_GAS, I_RUN, I_HALT = range(11)
-E_FROZEN, E_NORMAL, E_VOLHALT, E_OUTOFGAS, E_OUTOFMEM = range(5)
-STATUS = ["Frozen", "Normal", "VoluntaryHalt", "OutOfGas", "OutOfMemory"]
-
-code = """
-PUSH 10
-ALLOC
-PUSH 0
-PUSH 1
-WRITE
-PUSH 1
-ADD
-PUSH 4
-JUMP
-"""
+E_FROZEN, E_NORMAL, E_SUBCOMP, E_VOLHALT, E_OUTOFGAS, E_OUTOFMEM = range(6)
+STATUS = ["Frozen", "Normal", "SubComp", "VoluntaryHalt", "OutOfGas", "OutOfMemory"]
 
 code = """
 PUSH 40
@@ -28,8 +16,6 @@ JUMP
 """
 
 outer = """
-PUSH 100
-PUSH 100
 PUSH 0
 RUN
 PUSH 0
@@ -64,21 +50,21 @@ def pretty(program, depth=0):
 		else:
 			print(("\t"*depth)+str(m))
 
-def inject(code, stack=[], memory=[]):
+def inject(code, index=0, gas=0, mem=0, stack=[], memory=[]):
 	return [
 		E_FROZEN,
-		0,
-		0,
-		0,
+		index,
+		gas,
+		mem,
 		transform(code),
 		stack,
 		memory
 	]
 
-program = inject(outer, stack=[], memory=[inject(code)])#WHY THE HELL DO I NEED STACK=[] here?!
+program = inject(outer, stack=[], memory=[inject(code, gas=100, mem=100)])#WHY THE HELL DO I NEED STACK=[] here?!
 
 def step(program):
-	program[S_STATUS] = E_NORMAL
+	#program[S_STATUS] = E_NORMAL
 
 	if program[S_GAS] == 0:
 		program[S_STATUS] = E_OUTOFGAS
@@ -87,7 +73,7 @@ def step(program):
 	program[S_GAS] -= 1
 
 	instr = program[S_CODE][program[S_INDEX]]
-	#print("\nINSTR", instr if not isinstance(instr, dict) else ">")
+	print("\nINSTR", instr if not isinstance(instr, dict) else ">")
 	if instr[0] == I_PUSH:
 		value = instr[1]
 		if program[S_MEM] > 0:
@@ -176,40 +162,35 @@ def step(program):
 			# No address
 			program[S_INDEX] += 1
 		else:
-			#address has to be on top, otherwise problems at status check
-			subcomp = program[S_STACK][-1]
 			#print(subcomp)
 			#print(program[S_MEMORY][subcomp])
-			status = program[S_MEMORY][subcomp][S_STATUS]
+
 			#print("SUBCOMP STATUS", status)
-			if status == E_FROZEN:
-				print("FROZEN")
-				# Subcomp has not been started yet
-				if len(program[S_STACK]) >= 3:
-					print("STARTING")
-					program[S_MEMORY][subcomp][S_STATUS] = E_NORMAL
-					# Pop gas and mem
-					gas = program[S_STACK].pop(-2)
-					mem = program[S_STACK].pop(-2)
-					program[S_MEMORY][subcomp][S_GAS] = gas
-					program[S_MEMORY][subcomp][S_MEM] = mem
-					program[S_MEM] += 2
-				else:
-					# Not enough parameters to start subcomp
+
+			if program[S_STATUS] == E_SUBCOMP:
+				if len(program[S_STACK])<1:
 					program[S_INDEX] += 1
-			elif status == E_NORMAL:
-					# add indirection penalty?
-					#print("Recursing")
-					#program[S_CODE][program[S_INDEX]] = statestep(instr)#have to deserialize here too
-					#print("STACK", program[S_STACK])
-					program[S_MEMORY][subcomp] = step(program[S_MEMORY][subcomp])
-					#print("STACK", program[S_STACK])
-			else:#good to have state field at index 0
-				# Subcomp has halted
-				print("HALT", program[S_INDEX])
-				program[S_STACK].pop()#Pop subcomp address#still have to check here, grandparent could have modified...
-				program[S_MEM] += 1
-				program[S_INDEX] += 1
+				else:
+					subcomp = program[S_STACK][-1]
+					status = program[S_MEMORY][subcomp][S_STATUS]
+					print(status)
+					if status in [E_FROZEN, E_NORMAL]:
+							# add indirection penalty?
+							print("Recursing")
+							#program[S_CODE][program[S_INDEX]] = statestep(instr)#have to deserialize here too
+							#print("STACK", program[S_STACK])
+							program[S_MEMORY][subcomp] = step(program[S_MEMORY][subcomp])
+							#print("STACK", program[S_STACK])
+					else:#good to have state field at index 0
+						# Subcomp has halted
+						print("HALT", program[S_INDEX])
+						program[S_STACK].pop()#Pop subcomp address#still have to check here, grandparent could have modified...
+						program[S_MEM] += 1
+						program[S_INDEX] += 1
+						program[S_STATUS] = E_NORMAL
+			else:
+				program[S_STATUS] = E_SUBCOMP
+
 	else:
 		print("Invalid instruction", instr)
 		#print(program[S_INDEX])
@@ -236,7 +217,7 @@ def run(program, gas, mem=0, stats=False):
 			pretty(program)
 			input()
 			os.system("clear")
-		if program[S_STATUS] > 1:#program["gas"] == 0 or
+		if program[S_STATUS] > E_SUBCOMP:#program["gas"] == 0 or
 			break
 
 	pretty(program)
