@@ -4,15 +4,15 @@ import os
 
 I_PUSH, I_POP, I_DUP, I_READ, I_WRITE, I_JUMP, I_ADD, I_ALLOC, I_GAS, I_RUN, I_HALT = range(11)
 INSTRUCTIONS = ["push", "pop", "dup", "read", "write", "jump", "add", "alloc", "gas", "run", "halt"]
-E_FROZEN, E_NORMAL, E_SUBCOMP, E_VOLHALT, E_OUTOFGAS, E_OUTOFMEM, E_OUTOFBOUNDS = range(7)
-STATUS = ["Frozen", "Normal", "SubComp", "VoluntaryHalt", "OutOfGas", "OutOfMemory", "OutOfBounds"]
+E_FROZEN, E_NORMAL, E_VOLHALT, E_OUTOFGAS, E_OUTOFMEM, E_OUTOFBOUNDS = range(6)
+STATUS = ["Frozen", "Normal", "VoluntaryHalt", "OutOfGas", "OutOfMemory", "OutOfBounds"]
 
 code = """
-PUSH 40
+PUSH 1
 DUP
 DUP
 ADD
-PUSH 0
+PUSH 1
 JUMP
 """
 
@@ -41,33 +41,31 @@ def transform(code):
 WORDLEN = 256
 CODELEN = 2
 S_STATUS, S_INDEX, S_GAS, S_MEM, S_CODE, S_STACK, S_MEMORY, S_END = range(8)
-indices = ["Status", "Index", "Gas", "Mem", "Code", "Stack", "Memory", "End"]
+indices = ["Status", "Index", "Gas", "Mem", "PCode", "PStack", "PMemory", "PEnd"]
 def pretty(program, depth=0):
 	for i in range(S_END+1):
 		print(("\t"*depth)+indices[i]+"\t"+str(program[i]))
-	print(" ".join(map(str, program[program[S_CODE]:program[S_STACK]])))
-	print(" ".join(map(str, program[program[S_STACK]:program[S_MEMORY]])))
-	print(" ".join(map(str, program[program[S_MEMORY]:])))
+	print(("\t"*depth)+"Code\t"+" ".join(map(str, program[program[S_CODE]:program[S_STACK]])))
+	print(("\t"*depth)+"Stack\t"+" ".join(map(str, program[program[S_STACK]:program[S_MEMORY]])))
+	isrun = program[program[S_CODE]+CODELEN*program[S_INDEX]]==I_RUN
+	print(isrun)
+	if isrun:
+		#program[program[S_MEMORY]+program[program[S_MEMORY]-1]+S_STATUS] == E_NORMAL#unfrozen
+		subcomp = program[program[S_MEMORY]-1]
+		binarylen = program[program[S_MEMORY]+subcomp+S_END]
+		substart = program[S_MEMORY]+subcomp
+		subend = program[S_MEMORY]+subcomp+binarylen
+		pre = program[program[S_MEMORY]:substart]
+		binary = program[substart:subend]
+		post = program[subend:]
+		print(("\t"*depth)+"Pre\t"+" ".join(map(str, pre)))
+		pretty(binary, depth+1)
+		print(("\t"*depth)+"Post\t"+" ".join(map(str, post)))
+	else:
+		print(("\t"*depth)+"Memory\t"+" ".join(map(str, program[program[S_MEMORY]:])))
 
 HEADERLEN = 8
 
-def inject(code, index=0, gas=0, mem=0, stack=[], memory=[]):
-	code = transform(code)
-	return [
-		E_FROZEN,
-		index,
-		gas,
-		mem,
-		HEADERLEN,
-		HEADERLEN+len(code),
-		HEADERLEN+len(code)+len(stack),
-		HEADERLEN+len(code)+len(stack)+len(memory),
-		*code,
-		*stack,#move stack to end?
-		*memory
-	]
-
-program = inject(outer, stack=[], memory=inject(code, gas=100, mem=100))#WHY THE HELL DO I NEED STACK=[] here?!
 
 def step(program):
 	#program[S_STATUS] = E_NORMAL
@@ -192,38 +190,38 @@ def step(program):
 			# No address
 			next()
 		else:
-			if program[S_STATUS] == E_SUBCOMP:
-				subcomp = top()
-				status = program[program[S_MEMORY]+subcomp+S_STATUS]
-				#print(status)
-				if status in [E_FROZEN, E_NORMAL]:
-						# add indirection penalty?
-						print("Recursing")
-						binarylen = program[program[S_MEMORY]+subcomp+S_END]
-						binary = program[program[S_MEMORY]+subcomp:program[S_MEMORY]+subcomp+binarylen]
-						print("PRELEN", binarylen, len(binary))#should be the same
-						newbinary = step(binary)
-						print("POSTLEN", len(newbinary))
-						pre = program[:program[S_MEMORY]+subcomp]
-						post = program[program[S_MEMORY]+subcomp+binarylen:]
-						program = pre+newbinary+post
-						program[S_END] += len(newbinary)-binarylen
-						#adjust S_MEM here for parent as well?
-						#print("STACK", program[S_STACK])
-				else:#good to have state field at index 0
-					# Subcomp has halted
-					print("HALT", status)
-					pop()#Pop subcomp address#still have to check here, grandparent could have modified...
-					next()
-					program[S_STATUS] = E_NORMAL
-					program[program[S_MEMORY]+subcomp+S_STATUS] = E_FROZEN#ignore this? (no additional memory write necessary)
-			else:
+			subcomp = top()
+			status = program[program[S_MEMORY]+subcomp+S_STATUS]
+			if status == E_FROZEN:
 				# Initialize subcomputation
 				print("init")
-				program[S_STATUS] = E_SUBCOMP
-				subcomp = top()
 				program[program[S_MEMORY]+subcomp+S_STATUS]= E_NORMAL
 				program[program[S_MEMORY]+subcomp+S_MEM] = min(program[S_MEM], program[program[S_MEMORY]+subcomp+S_MEM])
+
+			#print(status)
+			#have to reread status
+			if program[program[S_MEMORY]+subcomp+S_STATUS] == E_NORMAL:
+				# add indirection penalty?
+				print("Recursing")
+				binarylen = program[program[S_MEMORY]+subcomp+S_END]
+				substart = program[S_MEMORY]+subcomp
+				subend = program[S_MEMORY]+subcomp+binarylen
+				pre = program[:substart]
+				binary = program[substart:subend]
+				post = program[subend:]
+				print("PRELEN", binarylen)
+				newbinary = step(binary)
+				print("POSTLEN", len(newbinary))
+				program = pre+newbinary+post
+				program[S_END] += len(newbinary)-binarylen
+				#adjust S_MEM here for parent as well?
+				#print("STACK", program[S_STACK])
+			else:#good to have state field at index 0
+				# Subcomp has halted
+				print("HALT", status)
+				pop()#Pop subcomp address#still have to check here, grandparent could have modified...
+				next()
+				program[program[S_MEMORY]+subcomp+S_STATUS] = E_FROZEN#ignore this? (no additional memory write necessary)
 
 	else:
 		print("Invalid instruction", instr)
@@ -234,12 +232,12 @@ def step(program):
 
 from time import time, sleep
 def run(program, gas, mem=0, stats=False):
-	print(program)
+	#print(program)
 	start = time()
 	program[S_GAS] = gas
 	program[S_MEM] = mem
 	iterations = 0
-	#os.system("clear")
+	os.system("clear")
 	while True:
 		if stats:
 			print("ITER %i\n" % iterations)
@@ -250,7 +248,7 @@ def run(program, gas, mem=0, stats=False):
 			pretty(program)
 			input()
 			os.system("clear")
-		if program[S_STATUS] > E_SUBCOMP:#program["gas"] == 0 or
+		if program[S_STATUS] > E_NORMAL:#program["gas"] == 0 or
 			break
 
 	pretty(program)
@@ -260,4 +258,24 @@ def run(program, gas, mem=0, stats=False):
 		print("%.6f s\t%i it\t%i it/s" % (diff, iterations, iterations/diff))
 	return program
 #input()
-run(program, 100, 100, stats=True)
+
+def inject(code, index=0, gas=0, mem=0, stack=[], memory=[]):
+	code = transform(code)
+	return [
+		E_FROZEN,
+		index,
+		gas,
+		mem,
+		HEADERLEN,
+		HEADERLEN+len(code),
+		HEADERLEN+len(code)+len(stack),
+		HEADERLEN+len(code)+len(stack)+len(memory),
+		*code,
+		*stack,#move stack to end?
+		*memory
+	]
+
+program = inject(outer, stack=[], memory=inject(code, gas=100, mem=10))#WHY THE HELL DO I NEED STACK=[] here?!
+
+
+run(program, 100, 20, stats=True)
