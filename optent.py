@@ -43,7 +43,8 @@ CODELEN = 2
 S_STATUS, S_INDEX, S_GAS, S_MEM, S_CODE, S_STACK, S_MEMORY, S_END = range(8)
 indices = ["Status", "Index", "Gas", "Mem", "PCode", "PStack", "PMemory", "PEnd"]
 def pretty(program, depth=0):
-	for i in range(S_END+1):
+	print(("\t"*depth)+indices[S_STATUS]+"\t"+str(program[S_STATUS])+"\t"+STATUS[program[S_STATUS]])
+	for i in range(1, S_END+1):
 		print(("\t"*depth)+indices[i]+"\t"+str(program[i]))
 	print(("\t"*depth)+"Code\t"+" ".join(map(str, program[program[S_CODE]:program[S_STACK]])))
 	print(("\t"*depth)+"Stack\t"+" ".join(map(str, program[program[S_STACK]:program[S_MEMORY]])))
@@ -192,10 +193,11 @@ def step(program):
 		else:
 			subcomp = top()
 			status = program[program[S_MEMORY]+subcomp+S_STATUS]
+			#remove this?
 			if status == E_FROZEN:
 				# Initialize subcomputation
 				print("init")
-				program[program[S_MEMORY]+subcomp+S_STATUS]= E_NORMAL
+				program[program[S_MEMORY]+subcomp+S_STATUS] = E_NORMAL
 				program[program[S_MEMORY]+subcomp+S_MEM] = min(program[S_MEM], program[program[S_MEMORY]+subcomp+S_MEM])
 
 			#print(status)
@@ -221,7 +223,8 @@ def step(program):
 				print("HALT", status)
 				pop()#Pop subcomp address#still have to check here, grandparent could have modified...
 				next()
-				program[program[S_MEMORY]+subcomp+S_STATUS] = E_FROZEN#ignore this? (no additional memory write necessary)
+				#!!!
+				#program[program[S_MEMORY]+subcomp+S_STATUS] = E_FROZEN#ignore this? (no additional memory write necessary)
 
 	else:
 		print("Invalid instruction", instr)
