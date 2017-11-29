@@ -2,12 +2,12 @@ STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 
 NORMAL, FROZEN, HALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
 
-RUN, HALT, JUMP, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, ALLOC, DEALLOC = range(11)
+HALT, RUN, JUMP, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC = range(12)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
-    ["RUN",1,1,0],
     ["HALT",1,0,0],
+    ["RUN",1,1,0],
     ["JUMP",1,1,-1],
     ["PUSH",2,0,1],
     ["STACKLEN",1,0,1],
@@ -88,6 +88,11 @@ def step(state):
         state[STATUS] = OOM
         return s(state)
 
+    # The following functions should have no or one side effect. If one, either
+    # 1. Set a STATE flag and return False, True otherwise
+    # 2. Have a side effect and be called _last_
+    # This is to ensure failing instructions can be continued normally
+
     def next():
         """Increments the instruction pointer"""
         nonlocal state
@@ -130,7 +135,19 @@ def step(state):
         else:
             return True
 
-    if instr == RUN:
+    def hasmem(mem):
+        """Checks if state has enough mem, sets flag otherwise"""
+        nonlocal state
+        if mem <= state[MEM]:
+            return True
+        else:
+            state[STATUS] = OOM
+            return False
+
+    if instr == HALT:
+        state[STATUS] = HALT
+        next()
+    elif instr == RUN:
         area, gas, mem = stack[-3:]
         if validarea(area):
             child = state[MEMORY][area]
@@ -146,9 +163,6 @@ def step(state):
                 next()
         else:
             next()
-    elif instr == HALT:
-        state[STATUS] = HALT
-        next()
     elif instr == JUMP:
         state[IP] = pop()
     elif instr[:4] == PUSH:
@@ -180,28 +194,27 @@ def step(state):
             next()
     elif instr == AREA:
         # This should cost 1 mem
-        if state[MEM] == 0:
-            state[STATUS] = OOM
-        else:
+        if hasmem(1):
             state[MEMORY].append()
             state[MEM] -= 1
             next()
     elif instr == ALLOC:
         area, size = stack[-2:]
         # Technically, -2
-        if size <= state[MEM]:
+        if hasmem(size):
             if validarea(area):
                 state[MEM] -= size
                 state[MEMORY][area] += [0] * size
                 next()
     elif instr == DEALLOC:
         area, size = stack[-2:]
-        # Technically, -2
-        if size <= state[MEM]:
-            if validarea(area):
+        if validarea(area):
+            if len(state[MEMORY][area]) <= size:
                 state[MEM] += size
                 state[MEMORY][area] = state[MEMORY][area][:-size]
                 next()
+            else:
+                state[STATUS] = OOB
     else:
         state[STATUS] = UOC
 
