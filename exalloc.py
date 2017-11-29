@@ -2,13 +2,24 @@ STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 
 NORMAL, FROZEN, HALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
 
-REQS = {
-    # Stack-In Effect
-    "RUN" : [1,0],
-    "HALT" : [0,0],
-    "PUSH" : [0,1],
-    "READ" : [2,-1]
-}
+RUN, HALT, JUMP, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, ALLOC, DEALLOC = range(11)
+
+REQS = [
+    # Name, Instruction length, Required Stack Size, Stack effect
+    ["RUN",1,1,0],
+    ["HALT",1,0,0],
+    ["JUMP",1,1,-1],
+    ["PUSH",2,0,1],
+    ["STACKLEN",1,0,1],
+    ["MEMORYLEN",1,0,1],
+    ["AREALEN",1,1,0],
+    ["READ",1,2,-1],
+    ["WRITE",1,3,-3],
+    ["AREA",1,0,1],
+    #["DEAREA",1,1,0],#!use after free!
+    ["ALLOC",1,2,-2],
+    ["DEALLOC",1,2,-2]
+]
 
 def s(state):
     """Flattens and serializes the nested state structure"""
@@ -63,24 +74,24 @@ def step(state):
     reqs = REQS[instr.split()[0]]
 
     # Check if extended instructions are within code bounds
-    if ip + reqs[2] >= len(state[CODE]):
+    if ip + reqs[1] >= len(state[CODE]):
         state[STATUS] = OOC
         return s(state)
 
     # Check whether stack has sufficient items for current instruction
-    if len(state[STACK]) < reqs[0]:
+    if len(state[STACK]) < reqs[2]:
         state[STATUS] = OOS
         return s(state)
 
     # Check if current instruction has enough memory for stack effects
-    if state[MEM] < reqs[1]:
+    if state[MEM] < reqs[3]:
         state[STATUS] = OOM
         return s(state)
 
     def next():
         """Increments the instruction pointer"""
         nonlocal state
-        state[IP] += 1
+        state[IP] += reqs[1]
 
     def push(value):
         """Pushes a value onto the stack"""
@@ -119,7 +130,7 @@ def step(state):
         else:
             return True
 
-    if instr == "RUN":
+    if instr == RUN:
         area, gas, mem = stack[-3:]
         if validarea(area):
             child = state[MEMORY][area]
@@ -135,38 +146,62 @@ def step(state):
                 next()
         else:
             next()
-    elif instr == "HALT":
+    elif instr == HALT:
         state[STATUS] = HALT
         next()
-    elif instr == "JUMP":
+    elif instr == JUMP:
         state[IP] = pop()
-    elif instr[:4] == "PUSH":
+    elif instr[:4] == PUSH:
         state[STACK].append(instr.split()[1])
-        next()
-    elif instr == "STACKLEN":
+        next(2)
+    elif instr == STACKLEN:
         if push(len(state[STACK])):
             next()
-    elif instr == "MEMORYLEN":
+    elif instr == MEMORYLEN:
         if push(len(state[MEMORY])):
             next()
-    elif instr == "AREALEN":
+    elif instr == AREALEN:
         area = stack[-1]
         if validarea(area):
             if push(len(state[MEMORY][area])):
                 stack.pop()
                 next()
-    elif instr == "READ":
+    elif instr == READ:
         area, addr = stack[-2:]
         if validmemory(area, addr):
             if push(state[MEMORY][area][addr]):
                 stack = stack[:-2]
                 next()
-    elif instr == "WRITE":
+    elif instr == WRITE:
         area, addr, value = stack[-3:]
         if validmemory(area, addr):
             state[MEMORY][area][addr] = value
             stack = stack[:-3]
             next()
+    elif instr == AREA:
+        # This should cost 1 mem
+        if state[MEM] == 0:
+            state[STATUS] = OOM
+        else:
+            state[MEMORY].append()
+            state[MEM] -= 1
+            next()
+    elif instr == ALLOC:
+        area, size = stack[-2:]
+        # Technically, -2
+        if size <= state[MEM]:
+            if validarea(area):
+                state[MEM] -= size
+                state[MEMORY][area] += [0] * size
+                next()
+    elif instr == DEALLOC:
+        area, size = stack[-2:]
+        # Technically, -2
+        if size <= state[MEM]:
+            if validarea(area):
+                state[MEM] += size
+                state[MEMORY][area] = state[MEMORY][area][:-size]
+                next()
     else:
         state[STATUS] = UOC
 
