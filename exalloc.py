@@ -93,10 +93,24 @@ def step(state):
     # 2. Have a side effect and be called _last_
     # This is to ensure failing instructions can be continued normally
 
-    def next():
+    def next(jump=None):
         """Increments the instruction pointer"""
         nonlocal state
-        state[IP] += reqs[1]
+        if reqs[3] < 0:
+            state[STACK] = state[STACK][:-reqs[3]]
+            state[MEM] += abs(reqs[3])
+
+        if jump is None:
+            state[IP] += reqs[1]
+        else:
+            state[IP] = jump
+
+    def top():
+        """Returns the top of the stack"""
+        if len(state[STACK]) == 0:
+            return None
+        else:
+            return state[STACK][-1]
 
     def push(value):
         """Pushes a value onto the stack"""
@@ -107,15 +121,6 @@ def step(state):
             state[STACK].append(value)
             state[MEM] -= 1
             return True
-
-    def pop():
-        """Pops a value from the stack"""
-        if len(state[STACK]) == 0:
-            return None
-        else:
-            value = state[STACK].pop()
-            state[MEM] += 1
-            return value
 
     def validarea(area):
         """Checks if this memory area index exists"""
@@ -164,10 +169,10 @@ def step(state):
         else:
             next()
     elif instr == JUMP:
-        state[IP] = pop()
+        next(top())
     elif instr[:4] == PUSH:
         state[STACK].append(instr.split()[1])
-        next(2)
+        next()
     elif instr == STACKLEN:
         if push(len(state[STACK])):
             next()
@@ -178,7 +183,6 @@ def step(state):
         area = stack[-1]
         if validarea(area):
             if push(len(state[MEMORY][area])):
-                stack.pop()
                 next()
     elif instr == READ:
         area, addr = stack[-2:]
