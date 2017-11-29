@@ -1,7 +1,7 @@
 import os
 
 I_PUSH, I_POP, I_DUP, I_READ, I_WRITE, I_JUMP, I_ADD, I_ALLOC, I_GAS, I_RUN, I_HALT = range(11)
-INSTRUCTIONS = ["push", "pop", "dup", "read", "write", "jump", "add", "alloc", "gas", "run", "halt"]
+INSTRUCTIONS = ["push", "pop", "dup", "read", "write", "jump", "jz", "add", "sub", "alloc", "gas", "run", "halt"]
 E_FROZEN, E_NORMAL, E_VOLHALT, E_OUTOFGAS, E_OUTOFMEM, E_OUTOFBOUNDS = range(6)
 STATUS = ["Frozen", "Normal", "VoluntaryHalt", "OutOfGas", "OutOfMemory", "OutOfBounds"]
 
@@ -22,7 +22,7 @@ def step(program):
 	ip = program[S_INDEX]
 	instrpos = program[S_CODE]+ip
 
-	#Make this check generic (instruction_length)
+	# Make this check generic (instruction_length)
 	if program[S_MEMORY] <= instrpos < S_CODE or (program[instrpos]==I_PUSH and (program[S_MEMORY] <= instrpos+1 < S_CODE)):
 		program[S_STATUS] = E_OUTOFBOUNDS
 		return program
@@ -118,6 +118,7 @@ def step(program):
 		return write(program[S_MEMORY]+address, value)
 
 	# Return pointer to result/number of successful writes here?
+    # Should this even exist? Move all within language?
 	def copy(source, target, length):
 		nonlocal program
 		for i in range(length):
@@ -170,7 +171,8 @@ def step(program):
 				# Still have to check here, grandparent could have modified...
 				pop()
 				next()
-				writemem(subcomp+S_STATUS, E_FROZEN)#ignore this? (no additional memory write necessary)
+                #ignore this? (no additional memory write necessary)
+				#writemem(subcomp+S_STATUS, E_FROZEN)
 
 	elif instr == I_PUSH:
 		value = program[instrpos+1]
@@ -192,7 +194,7 @@ def step(program):
 		if stacklen() >= 2:
 			addr = pop()
 			value = pop()
-			if addr >= memorylength():
+			if addr >= memorylen():
 				pass#???
 			else:
 				program[S_MEMORY+addr] = program[S_MEMORY-1]
@@ -202,7 +204,7 @@ def step(program):
 			next()
 		else:
 			addr = pop()
-			if addr >= memorylength():
+			if addr >= memorylen():
 				next()
 			else:
 				if push(program[S_MEMORY+addr]):
@@ -325,9 +327,10 @@ def transform(code):
 	newcode = sum(newcode, [])
 	return newcode
 
-child = inject(code, gas=50, mem=50)
-program = inject(outer, memory=child)
-print(len(program), len(child))
-print(program)
-print(child)
-run(program, 150, 150, stats=True)
+if __name__ == "__main__":
+    child = inject(code, gas=50, mem=50)
+    program = inject(outer, memory=child)
+    print(len(program), len(child))
+    print(program)
+    print(child)
+    run(program, 150, 150, stats=True)
