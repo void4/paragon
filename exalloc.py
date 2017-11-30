@@ -289,7 +289,7 @@ def run(state, gas=100, mem=100):
     while True:
         if state[STATUS] > NORMAL:
             dstate = d(state)
-            print(STATI[dstate[STATUS]])
+            print(STATI[dstate[STATUS]], dstate[GAS], dstate[MEM])
             """
             try:
                 print(REQS[dstate[CODE][dstate[IP]]])

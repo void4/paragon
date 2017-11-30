@@ -38,14 +38,3 @@ while True:
         inp = []
     state[MEMORY].append(inp)#.append(int(inp))#
     state = s(state)
-
-#print("".join([hex(v)[2:].zfill(16) for v in inject(asm)]))
-
-from assembler import assemble
-code = """
-PUSH 0
-SHA256
-"""
-asm = assemble(code)
-#print(asm)
-#print(run(asm, 100, 100))

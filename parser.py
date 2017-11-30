@@ -286,34 +286,8 @@ def parse(code):
 
     text = MyTransformer().transform(parsed)
 
-    text_unopt = "\n".join(text)
-    text_opt = optimize(text)
-    text_opt = "\n".join(text_opt)
-    print(text_opt)
-    asm = assemble(text_opt)
+    asm = assemble(text)
 
-    print("Optimized:", len(asm), "Unoptimized:", len(assemble(text_unopt)))
     print(asm)
     print(vard)
     return asm
-
-def optimize(text):
-    optimized = []
-    last = None
-    lastpushed = None
-    for line in text:
-
-        if line[:4] == "PUSH":
-            if line == lastpushed:
-                optimized.append("DUP")
-            else:
-                lastpushed = line
-                optimized.append(line)
-        elif line == "NOT" and last == "NOT":
-            lastpushed = None
-            continue
-        else:
-            lastpushed = None
-            optimized.append(line)
-        last = line
-    return optimized

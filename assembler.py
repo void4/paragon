@@ -4,7 +4,56 @@ import sys
 opcodes = [req[0].lower() for req in REQS]
 #print(opcodes)
 
+def optimize(text):
+    optimized = []
+    last = None
+    lastpushed = None
+    skip = False
+    for i, line in enumerate(text):
+
+        if skip:
+            skip = False
+            continue
+
+        nextline = text[i+1] if i + 1 < len(text) else None
+        if line[:4] == "PUSH":
+            if line == "PUSH 0" and nextline in ["ADD", "SUB"]:
+                #Can only do these if there is something one the stack. Otherwise different behavior (no failure)
+                skip = True
+                continue
+            elif line == "PUSH 1" and nextline in ["MUL", "DIV"]:
+                skip = True
+                continue
+            elif line == lastpushed:
+                optimized.append("DUP")
+            else:
+                lastpushed = line
+                optimized.append(line)
+        elif nextline == "NOT" and line == "NOT":
+            skip = True
+            continue
+        else:
+            lastpushed = None
+            optimized.append(line)
+        last = line
+    return optimized
+
+
 def assemble(text):
+
+    if isinstance(text, str):
+        text = text.split("\n")
+    text_unopt = "\n".join(text)
+    text_opt = text
+    for i in range(5):
+        text_opt = optimize(text_opt)
+    text_opt = "\n".join(text_opt)
+    print(text_opt)
+    asm = translate(text_opt)
+    print("Optimized:", len(asm), "Unoptimized:", len(translate(text_unopt)))
+    return asm
+
+def translate(text):
     lines = text.split("\n")
 
     labels = {}
