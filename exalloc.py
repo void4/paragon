@@ -78,11 +78,11 @@ def step(state):
         return s(state)
 
     instr = state[CODE][ip]
-
+    print(instr)
     reqs = REQS[instr]
 
     # Check if extended instructions are within code bounds
-    if ip + reqs[1] >= len(state[CODE]):
+    if ip + reqs[1] - 1 >= len(state[CODE]):
         state[STATUS] = OOC
         return s(state)
 
@@ -183,6 +183,8 @@ def step(state):
     elif instr == JZ:
         if state[STACK][-2] == 0:
             next(top())
+        else:
+            next()
     elif instr == PUSH:
         state[STACK].append(state[CODE][ip+1])
         next()

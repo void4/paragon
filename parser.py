@@ -1,4 +1,5 @@
 from lark import Lark, Transformer
+from exalloc import inject
 
 grammar = r"""
 
@@ -86,136 +87,113 @@ def prep(code):
         lines += prefix + line.lstrip() + "\n"
     return lines
 
-vard = {
+def parse(code):
+    vard = {
 
-}
+    }
 
-def init(name):
-    global vard
-    if name not in vard:
-        vard[name] = len(vard)
-    return vard[name]
+    def init(name):
+        nonlocal vard
+        if name not in vard:
+            vard[name] = len(vard)
+        return vard[name]
 
-def var(name):
-    global vard
-    return vard[name]
+    def var(name):
+        nonlocal vard
+        return vard[name]
 
-def varint(node):
-    if node.type == "DEC_NUMBER":
-        return ["PUSH %i" % int(node.value)]
-    else:
-        return ["PUSH %i" % area, "PUSH %i" % vard[node.value], "READ"]#["READ %i %i" % (area, var(node.value))]
+    def varint(node):
+        if node.type == "DEC_NUMBER":
+            return ["PUSH %i" % int(node.value)]
+        else:
+            return ["PUSH %i" % area, "PUSH %i" % vard[node.value], "READ"]#["READ %i %i" % (area, var(node.value))]
 
-labeli = 0
-def genlabel():
-    global labeli
-    labeli += 1
-    return str("label%i" % labeli)
+    labeli = 0
+    def genlabel():
+        nonlocal labeli
+        labeli += 1
+        return str("label%i" % labeli)
 
-# Variable storage
-area = 0
-class MyTransformer(Transformer):
+    # Variable storage
+    area = 0
+    class MyTransformer(Transformer):
 
-    def start(self, node):
-        out = []
-        out.append("AREA")
-        out += sum(node, [])
-        return "\n".join(out)
+        def start(self, node):
+            out = []
+            out.append("AREA")
+            out += sum(node, [])
+            return "\n".join(out)
 
-    def suite(self, node):
-        return sum(node, [])
+        def suite(self, node):
+            return sum(node, [])
 
-    def if_stmt(self, node):
-        print("ifstmt", node)
-        out = []
-        out += node[0]
-        label = genlabel()
-        out.append("PUSH %s" % label)
-        out.append("JZ")
-        out += node[1]
-        out.append(label+":")
-        return out
-
-
-    def comparison(self, node):
-        out = []
-        print("==", node)
-        out += varint(node[0])
-        out += varint(node[2])
-        out.append("SUB")
-        out.append("NOT")
-        print(out)
-        return out
-
-    def term(self, node):
-        out = []
-        out += varint(node[0])
-        out += varint(node[2])
-        out.append("%s" % {"*":"MUL", "/":"DIV", "%":"MOD"}[node[1].value])
-        return out
-
-    def arith_expr(self, node):
-        out = []
-        out += varint(node[0])
-        out += varint(node[2])
-        out.append("%s" % {"+":"ADD", "-":"SUB", "~":"NOT"}[node[1].value])
-        return out
-
-    def assign(self, node):
-        global vard
-        #print("=",node)
-        target = node[0]
-
-        out = []
-        out.append("PUSH %i" % area)
-        if isinstance(target, str):
-            if target not in vard:
-                out.append("PUSH %i" % area)
-                out.append("PUSH 1")
-                out.append("ALLOC")
-                vard[target] = len(vard)
-            target = vard[target]
-        out.append("PUSH %i" % target)
-        out += varint(node[1])
-        out.append("WRITE")
-        return out
-
-l = Lark(grammar, debug=True)
+        def if_stmt(self, node):
+            print("ifstmt", node)
+            out = []
+            out += node[0]
+            label = genlabel()
+            out.append("PUSH %s" % label)
+            out.append("JZ")
+            out += node[1]
+            out.append(label+":")
+            return out
 
 
+        def comparison(self, node):
+            out = []
+            print("==", node)
+            out += varint(node[0])
+            out += varint(node[2])
+            out.append("SUB")
+            #out.append("NOT")
+            print(out)
+            return out
 
-code = """
-a = 3
-b = 3
-if a == b:
-    a = 3
-"""
+        def term(self, node):
+            out = []
+            out += varint(node[0])
+            out += varint(node[2])
+            out.append("%s" % {"*":"MUL", "/":"DIV", "%":"MOD"}[node[1].value])
+            return out
 
-c2 = """
-if a == b:
-    a = 3
-else:
-    a = 5
+        def arith_expr(self, node):
+            out = []
+            out += varint(node[0])
+            out += varint(node[2])
+            out.append("%s" % {"+":"ADD", "-":"SUB", "~":"NOT"}[node[1].value])
+            return out
 
-def test():
-    a = 3
-    if a == 3:
-        a = 4
-"""
+        def assign(self, node):
+            nonlocal vard
+            #print("=",node)
+            target = node[0]
 
-#print(list(code))
+            out = []
+            out.append("PUSH %i" % area)
+            if isinstance(target, str):
+                if target not in vard:
+                    out.append("PUSH %i" % area)
+                    out.append("PUSH 1")
+                    out.append("ALLOC")
+                    vard[target] = len(vard)
+                target = vard[target]
+            out.append("PUSH %i" % target)
+            out += varint(node[1])
+            out.append("WRITE")
+            return out
 
-prepped = prep(code)
-print(prepped)
-parsed = l.parse(prepped)
-print(parsed)
+    l = Lark(grammar, debug=True)
 
-t = MyTransformer().transform(parsed)
-print(t)
 
-from assembler import assemble
-asm = assemble(t)
-print(asm)
+    prepped = prep(code)
+    print(prepped)
+    parsed = l.parse(prepped)
+    print(parsed)
 
-from exalloc import inject, run
-run(inject(asm), 100, 100)
+    t = MyTransformer().transform(parsed)
+    print(t)
+
+    from assembler import assemble
+    asm = assemble(t)
+    print(asm)
+    return inject(asm)
