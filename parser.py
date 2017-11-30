@@ -213,30 +213,41 @@ def parse(code):
 
     l = Lark(grammar, debug=True)
 
-
+    from assembler import assemble
     prepped = prep(code)
     #print(prepped)
     parsed = l.parse(prepped)
     #print(parsed)
 
     text = MyTransformer().transform(parsed)
-    text = optimize(text)
-    text = "\n".join(text)
 
-    from assembler import assemble
-    asm = assemble(text)
+    text_unopt = "\n".join(text)
+    text_opt = optimize(text)
+    text_opt = "\n".join(text_opt)
+
+    asm = assemble(text_opt)
+
+    print("Optimized:", len(asm), "Unoptimized:", len(assemble(text_unopt)))
     print(asm)
     return inject(asm)
 
 def optimize(text):
     optimized = []
     last = None
+    lastpushed = None
     for line in text:
-        if line == "NOT" and last == "NOT":
+
+        if line[:4] == "PUSH":
+            if line == lastpushed:
+                optimized.append("DUP")
+            else:
+                lastpushed = line
+                optimized.append(line)
+        elif line == "NOT" and last == "NOT":
+            lastpushed = None
             continue
-        elif line[:4] == "PUSH" and line == last:
-            optimized.append("DUP")
         else:
+            lastpushed = None
             optimized.append(line)
         last = line
     return optimized

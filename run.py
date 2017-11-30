@@ -12,7 +12,7 @@ from parser import parse
 asm = parse(code)
 #print(list(code))
 from exalloc import run
-run(asm, 1000, 100)
+run(asm, 100, 100)
 """
 #print("".join([hex(v)[2:].zfill(16) for v in inject(asm)]))
 def conv(array):
