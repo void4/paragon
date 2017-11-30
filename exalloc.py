@@ -68,7 +68,7 @@ def step(state):
     # Halt if out of gas
     if state[GAS] == 0:
         state[STATUS] = OOG
-        return state
+        return s(state)
     state[GAS] -= 1
 
     # Check if current instruction pointer is within code bounds
@@ -261,6 +261,7 @@ def step(state):
     return s(state)
 
 def run(state, gas=100, mem=100):
+    state[STATUS] = NORMAL
     state[GAS] = gas
     state[MEM] = mem
     while True:
@@ -283,12 +284,4 @@ def run(state, gas=100, mem=100):
         print(out[STACK], out[MEMORY])
 
 def inject(code):
-    return s([0, 100, 100, 0, code, [], []])
-
-if __name__ == "__main__":
-    state = s([0, 100, 100, 0, [], [], [
-        s([0, 100, 100, 0, [], [], []])]
-    ])
-
-    print(state)
-    run(state)
+    return s([FROZEN, 0, 0, 0, code, [], []])
