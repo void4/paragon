@@ -14,11 +14,11 @@ while:
     # Assuming none were deleted, of course
     if before != $memorylen:
         if $arealen($memorylen-1) != 0:
-            pass
-            #a = $read($memorylen-1, 0)
-        #$dearea $memorylen - 1
-    #else:
-    #    a = $sha256(a)
+            a = $read($memorylen-1, 0)
+        else:
+            $dearea($memorylen - 1)
+    else:
+        a = $sha256(a)
 
 """
 
@@ -28,11 +28,15 @@ state = parse(code)
 from exalloc import run, d, s, MEMORY
 
 while True:
-    state = run(state, 100, 100)
+    state = run(state, 0xffffffff, 100)
     state = d(state)
     inp = input()
-    if len(inp):
-        state[MEMORY].append([int(inp)])#.append(int(inp))#
+    #if len(inp):
+    if inp:
+        inp = [int(inp)]
+    else:
+        inp = []
+    state[MEMORY].append(inp)#.append(int(inp))#
     state = s(state)
 
 #print("".join([hex(v)[2:].zfill(16) for v in inject(asm)]))

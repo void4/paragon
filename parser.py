@@ -25,8 +25,8 @@ start: (_NEWLINE | stmt)*
           | test
 
 write_stmt: "$write" "(" expr "," expr "," expr ")"
-dealloc_stmt: "$dealloc" expr
-dearea_stmt: "$dearea" expr
+dealloc_stmt: "$dealloc" "(" expr ")"
+dearea_stmt: "$dearea" "(" expr ")"
 ?flow_stmt: pass_stmt | return_stmt | halt_stmt
 pass_stmt: "pass"
 return_stmt: "return" (test | NAME)

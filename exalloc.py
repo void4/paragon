@@ -22,7 +22,7 @@ REQS = [
     ["DUP",1,0,1],
     ["STACKLEN",1,0,1],
     ["MEMORYLEN",1,0,1],
-    ["AREALEN",1,1,-1],
+    ["AREALEN",1,1,0],
     ["READ",1,2,-1],
     ["WRITE",1,3,-3],
     ["AREA",1,0,1],
@@ -208,8 +208,8 @@ def step(state):
     elif instr == AREALEN:
         area = state[STACK][-1]
         if validarea(area):
-            if push(len(state[MEMORY][area])):
-                next()
+            state[STACK][-1] = len(state[MEMORY][area])
+            next()
     elif instr == READ:
         area, addr = state[STACK][-2:]
         if validmemory(area, addr):
