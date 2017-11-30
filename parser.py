@@ -13,7 +13,7 @@ _INDENT: "<INDENT>"
 %import common.ESCAPED_STRING
 string: ESCAPED_STRING
 ?number: DEC_NUMBER
-DEC_NUMBER: /[1-9]\d*l?/i
+DEC_NUMBER: /0|[1-9]\d*/i
 
 %ignore /[\t \f]+/  // Whitespace
 
@@ -33,8 +33,8 @@ return_stmt: "return" (test | NAME)
 ?and_test: not_test ("and" not_test)*
 ?not_test: "not" not_test -> not
 | comparison
-?comparison: expr comp_op expr
-?comp_op: "=="
+?comparison: expr _comp_op expr
+!_comp_op: "==" | "!="
 
 ?expr: arith_expr
 ?arith_expr: term (_add_op term)*
@@ -57,9 +57,11 @@ subscript: test
 arglist: (argument ",")* (argument [","])
 argument: test
 
-?compound_stmt: if_stmt | funcdef
+?compound_stmt: if_stmt | while_stmt | funcdef
 if_stmt: "if" test ":" suite ["else" ":" suite]
 suite: _NEWLINE _INDENT _NEWLINE? stmt+ _DEDENT _NEWLINE?
+
+while_stmt: "while" test ":" suite
 
 funcdef: "def" NAME "(" [parameters] ")" ":" suite
 parameters: paramvalue ("," paramvalue)*
@@ -103,6 +105,8 @@ def parse(code):
         return vard[name]
 
     def varint(node):
+        if isinstance(node, list):
+            return node
         if node.type == "DEC_NUMBER":
             return ["PUSH %i" % int(node.value)]
         else:
@@ -122,31 +126,56 @@ def parse(code):
             out = []
             out.append("AREA")
             out += sum(node, [])
-            return "\n".join(out)
+            return out
 
         def suite(self, node):
             return sum(node, [])
 
         def if_stmt(self, node):
-            print("ifstmt", node)
+            #print("ifstmt", node)
             out = []
             out += node[0]
-            label = genlabel()
-            out.append("PUSH %s" % label)
+            else_label = genlabel()
+            end_label = genlabel()
+            out.append("PUSH %s" % else_label)
             out.append("JZ")
             out += node[1]
-            out.append(label+":")
+            out.append("PUSH %s" % end_label)
+            out.append("JUMP")
+            out.append(else_label+":")
+            out += node[2]
+            out.append(end_label+":")
             return out
 
+        def while_stmt(self, node):
+            print("while", node)
+            out = []
+            start_label = genlabel()
+            end_label = genlabel()
+
+            out.append(start_label+":")
+
+            out += node[0]
+
+            out.append("NOT")
+            out.append("PUSH %s" % end_label)
+            out.append("JZ")
+
+            out += node[1]
+
+            out.append("PUSH %s" % start_label)
+            out.append("JUMP")
+            out.append(end_label+":")
+            return out
 
         def comparison(self, node):
             out = []
-            print("==", node)
+            #print("==", node)
             out += varint(node[0])
             out += varint(node[2])
             out.append("SUB")
-            #out.append("NOT")
-            print(out)
+            if node[1].value == "==":
+                out.append("NOT")
             return out
 
         def term(self, node):
@@ -186,14 +215,28 @@ def parse(code):
 
 
     prepped = prep(code)
-    print(prepped)
+    #print(prepped)
     parsed = l.parse(prepped)
-    print(parsed)
+    #print(parsed)
 
-    t = MyTransformer().transform(parsed)
-    print(t)
+    text = MyTransformer().transform(parsed)
+    text = optimize(text)
+    text = "\n".join(text)
 
     from assembler import assemble
-    asm = assemble(t)
+    asm = assemble(text)
     print(asm)
     return inject(asm)
+
+def optimize(text):
+    optimized = []
+    last = None
+    for line in text:
+        if line == "NOT" and last == "NOT":
+            continue
+        elif line[:4] == "PUSH" and line == last:
+            optimized.append("DUP")
+        else:
+            optimized.append(line)
+        last = line
+    return optimized

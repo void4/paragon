@@ -1,9 +1,13 @@
+WORDSIZE = 256
+WMAX = 2**WORDSIZE
+WMASK = WMAX-1
+
 STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 
 NORMAL, FROZEN, HALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RUN, JUMP, JZ, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD = range(19)
+HALT, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD = range(20)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
@@ -12,6 +16,7 @@ REQS = [
     ["JUMP",1,1,-1],
     ["JZ",1,2,-2],
     ["PUSH",2,0,1],
+    ["DUP",1,0,1],
     ["STACKLEN",1,0,1],
     ["MEMORYLEN",1,0,1],
     ["AREALEN",1,1,0],
@@ -78,7 +83,6 @@ def step(state):
         return s(state)
 
     instr = state[CODE][ip]
-    print(instr)
     reqs = REQS[instr]
 
     # Check if extended instructions are within code bounds
@@ -188,6 +192,9 @@ def step(state):
     elif instr == PUSH:
         state[STACK].append(state[CODE][ip+1])
         next()
+    elif instr == DUP:
+        state[STACK].append(top())
+        next()
     elif instr == STACKLEN:
         if push(len(state[STACK])):
             next()
@@ -202,8 +209,8 @@ def step(state):
     elif instr == READ:
         area, addr = state[STACK][-2:]
         if validmemory(area, addr):
-            if push(state[MEMORY][area][addr]):
-                next()
+            state[STACK][-2] = state[MEMORY][area][addr]
+            next()
     elif instr == WRITE:
         area, addr, value = state[STACK][-3:]
         if validmemory(area, addr):
@@ -238,14 +245,14 @@ def step(state):
         next()
     elif instr == SUB:
         op1, op2 = state[STACK][-2:]
-        state[STACK][-2] = op1 - op2
+        state[STACK][-2] = (op1 - op2) % WMAX
         next()
     elif instr == NOT:
-        state[STACK][-1] = ~state[STACK][-1]
+        state[STACK][-1] = ~state[STACK][-1] & WMASK
         next()
     elif instr == MUL:
         op1, op2 = state[STACK][-2:]
-        state[STACK][-2] = op1 * op2
+        state[STACK][-2] = (op1 * op2) % WMAX
         next()
     elif instr == DIV:
         op1, op2 = state[STACK][-2:]
