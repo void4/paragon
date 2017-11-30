@@ -2,7 +2,7 @@ STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 
 NORMAL, FROZEN, HALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
 
-HALT, RUN, JUMP, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC = range(12)
+HALT, RUN, JUMP, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD = range(15)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
@@ -18,7 +18,13 @@ REQS = [
     ["AREA",1,0,1],
     #["DEAREA",1,1,0],#!use after free!
     ["ALLOC",1,2,-2],
-    ["DEALLOC",1,2,-2]
+    ["DEALLOC",1,2,-2],
+    ["ADD",1,2,-1],
+    ["SUB",1,2,-1],
+    ["NOT",1,1,0]
+    ["MUL",1,2,-1],
+    ["DIV",1,2,-1],
+    ["MOD",1,2,-1],
 ]
 
 def s(state):
@@ -88,13 +94,8 @@ def step(state):
         state[STATUS] = OOM
         return s(state)
 
-    # The following functions should have no or one side effect. If one, either
-    # 1. Set a STATE flag and return False, True otherwise
-    # 2. Have a side effect and be called _last_
-    # This is to ensure failing instructions can be continued normally
-
     def next(jump=None):
-        """Increments the instruction pointer"""
+        """Pops arguments. Sets the instruction pointer"""
         nonlocal state
         if reqs[3] < 0:
             state[STACK] = state[STACK][:-reqs[3]]
@@ -104,6 +105,12 @@ def step(state):
             state[IP] += reqs[1]
         else:
             state[IP] = jump
+
+    # The following functions should have no or one side effect. If one, either
+    # 1. Set a STATE flag and return False, True otherwise
+    # 2. Have a side effect and be called _last_
+    # This is to ensure failing instructions can be continued normally
+
 
     def top():
         """Returns the top of the stack"""
@@ -219,17 +226,44 @@ def step(state):
                 next()
             else:
                 state[STATUS] = OOB
+    elif instr == ADD:
+        op1, op2 = stack[-2:]
+        stack[-2] = op1 + op2
+        next()
+    elif instr == SUB:
+        op1, op2 = stack[-2:]
+        stack[-2] = op1 - op2
+        next()
+    elif instr == NOT:
+        stack[-1] = ~stack[-1]
+        next()
+    elif instr == MUL:
+        op1, op2 = stack[-2:]
+        stack[-2] = op1 * op2
+        next()
+    elif instr == DIV:
+        op1, op2 = stack[-2:]
+        stack[-2] = op1 // op2
+        next()
+    elif instr == MOD:
+        op1, op2 = stack[-2:]
+        stack[-2] = op1 % op2
+        next()
     else:
         state[STATUS] = UOC
 
     return s(state)
 
+def run(state):
+    while True:
+        if state[0] > NORMAL:
+            break
+        state = step(state)
+        print(state)
+
 state = s([0, 100, 100, 0, [], [], [
     s([0, 100, 100, 0, [], [], []])]
 ])
+
 print(state)
-while True:
-    if state[0] > NORMAL:
-        break
-    state = step(state)
-    print(state)
+run(state)
