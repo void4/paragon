@@ -1,13 +1,16 @@
-WORDSIZE = 256
+from hashlib import sha256
+
+BYTESIZE = 32
+WORDSIZE = 8*BYTESIZE
 WMAX = 2**WORDSIZE
 WMASK = WMAX-1
 
 STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 
-NORMAL, FROZEN, HALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
+NORMAL, FROZEN, VOLHALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD = range(20)
+HALT, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(21)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
@@ -32,6 +35,7 @@ REQS = [
     ["MUL",1,2,-1],
     ["DIV",1,2,-1],
     ["MOD",1,2,-1],
+    ["SHA256",1,1,0],
 ]
 
 def s(state):
@@ -164,7 +168,7 @@ def step(state):
             return False
 
     if instr == HALT:
-        state[STATUS] = HALT
+        state[STATUS] = VOLHALT
         next()
     elif instr == RUN:
         area, gas, mem = state[STACK][-3:]
@@ -261,6 +265,13 @@ def step(state):
     elif instr == MOD:
         op1, op2 = state[STACK][-2:]
         state[STACK][-2] = op1 % op2
+        next()
+    elif instr == SHA256:
+        bytearr = state[STACK][-1].to_bytes(BYTESIZE, byteorder="big", signed=False)
+        digest = sha256(bytearr)
+        #print(bytearr)
+        #print(digest.hexdigest())
+        state[STACK][-1] = int.from_bytes(digest.digest(), byteorder="big", signed=False)
         next()
     else:
         state[STATUS] = UOC

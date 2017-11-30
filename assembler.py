@@ -1,4 +1,4 @@
-from exalloc import REQS, PUSH
+from exalloc import REQS, PUSH, inject
 import sys
 
 opcodes = [req[0].lower() for req in REQS]
@@ -81,7 +81,7 @@ def assemble(text):
     #print("".join(map(lambda x:hex(x)[2:].zfill(16), total)))
     print(total)
     """
-    return total
+    return inject(total)
 #bfile = open("bytecode.js", "w+")
 #bfile.write("var code = "+str(code))
 #bfile.close()

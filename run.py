@@ -3,8 +3,9 @@
 code = """
 a = 0
 
-while a!=2000:
+while a!= 2000:
     a = a + 1
+    halt
 
 """
 
@@ -60,3 +61,12 @@ hsh = hashlib.sha224(bytearr).hexdigest()
 
 print("Hash:", hsh)
 """
+
+from assembler import assemble
+code = """
+PUSH 0
+SHA256
+"""
+asm = assemble(code)
+print(asm)
+print(run(asm, 100, 100))

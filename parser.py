@@ -1,5 +1,4 @@
 from lark import Lark, Transformer
-from exalloc import inject
 
 grammar = r"""
 
@@ -25,7 +24,8 @@ start: (_NEWLINE | stmt)*
 ?expr_stmt: NAME "=" (test | expr) -> assign
           | test
 
-?flow_stmt: return_stmt
+?flow_stmt: return_stmt | halt_stmt
+?halt_stmt: "halt"
 return_stmt: "return" (test | NAME)
 
 ?test: or_test
@@ -192,6 +192,9 @@ def parse(code):
             out.append("%s" % {"+":"ADD", "-":"SUB", "~":"NOT"}[node[1].value])
             return out
 
+        def halt_stmt(self, node):
+            return ["HALT"]
+
         def assign(self, node):
             nonlocal vard
             #print("=",node)
@@ -229,7 +232,7 @@ def parse(code):
 
     print("Optimized:", len(asm), "Unoptimized:", len(assemble(text_unopt)))
     print(asm)
-    return inject(asm)
+    return asm
 
 def optimize(text):
     optimized = []
