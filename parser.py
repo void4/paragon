@@ -66,25 +66,6 @@ parameters: paramvalue ("," paramvalue)*
 ?param: NAME
 """
 
-
-code = """
-if a == b:
-    a = 3
-else:
-    a = 5
-
-def test():
-    a = 3
-    if a == 3:
-        a = 4
-"""
-
-code = """
-a = 1+1*2
-"""
-
-#print(list(code))
-
 def indent(line):
     return (len(line)-len(line.lstrip(" ")))//4
 
@@ -105,12 +86,6 @@ def prep(code):
         lines += prefix + line.lstrip() + "\n"
     return lines
 
-l = Lark(grammar, debug=True)
-prepped = prep(code)
-print(prepped)
-parsed = l.parse(prepped)
-#print(parsed)
-
 vard = {
 
 }
@@ -129,33 +104,70 @@ def varint(node):
     if node.type == "DEC_NUMBER":
         return ["PUSH %i" % int(node.value)]
     else:
-        return ["PUSH %i" % area, "PUSH %i" % vard[name], "READ"]#["READ %i %i" % (area, var(node.value))]
+        return ["PUSH %i" % area, "PUSH %i" % vard[node.value], "READ"]#["READ %i %i" % (area, var(node.value))]
 
+labeli = 0
+def genlabel():
+    global labeli
+    labeli += 1
+    return str("label%i" % labeli)
+
+# Variable storage
+area = 0
 class MyTransformer(Transformer):
 
     def start(self, node):
-        return "\n".join(sum(node, []))
+        out = []
+        out.append("AREA")
+        out += sum(node, [])
+        return "\n".join(out)
+
+    def suite(self, node):
+        return sum(node, [])
+
+    def if_stmt(self, node):
+        print("ifstmt", node)
+        out = []
+        out += node[0]
+        label = genlabel()
+        out.append("PUSH %s" % label)
+        out.append("JZ")
+        out += node[1]
+        out.append(label+":")
+        return out
+
+
+    def comparison(self, node):
+        out = []
+        print("==", node)
+        out += varint(node[0])
+        out += varint(node[2])
+        out.append("SUB")
+        out.append("NOT")
+        print(out)
+        return out
 
     def term(self, node):
-        print("term", node)
         out = []
         out += varint(node[0])
-        out += node[2]
+        out += varint(node[2])
         out.append("%s" % {"*":"MUL", "/":"DIV", "%":"MOD"}[node[1].value])
         return out
 
     def arith_expr(self, node):
         out = []
         out += varint(node[0])
-        out += node[2]
+        out += varint(node[2])
         out.append("%s" % {"+":"ADD", "-":"SUB", "~":"NOT"}[node[1].value])
         return out
 
     def assign(self, node):
         global vard
+        #print("=",node)
         target = node[0]
-        area = 0
+
         out = []
+        out.append("PUSH %i" % area)
         if isinstance(target, str):
             if target not in vard:
                 out.append("PUSH %i" % area)
@@ -163,11 +175,47 @@ class MyTransformer(Transformer):
                 out.append("ALLOC")
                 vard[target] = len(vard)
             target = vard[target]
-        out += node[1]
-        out.append("PUSH %i" % area)
         out.append("PUSH %i" % target)
+        out += varint(node[1])
         out.append("WRITE")
         return out
 
+l = Lark(grammar, debug=True)
+
+
+
+code = """
+a = 3
+b = 3
+if a == b:
+    a = 3
+"""
+
+c2 = """
+if a == b:
+    a = 3
+else:
+    a = 5
+
+def test():
+    a = 3
+    if a == 3:
+        a = 4
+"""
+
+#print(list(code))
+
+prepped = prep(code)
+print(prepped)
+parsed = l.parse(prepped)
+print(parsed)
+
 t = MyTransformer().transform(parsed)
 print(t)
+
+from assembler import assemble
+asm = assemble(t)
+print(asm)
+
+from exalloc import inject, run
+run(inject(asm), 100, 100)

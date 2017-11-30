@@ -1,14 +1,16 @@
 STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 
 NORMAL, FROZEN, HALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
+STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RUN, JUMP, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD = range(15)
+HALT, RUN, JUMP, JZ, PUSH, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD = range(19)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
     ["HALT",1,0,0],
     ["RUN",1,1,0],
     ["JUMP",1,1,-1],
+    ["JZ",1,2,-2],
     ["PUSH",2,0,1],
     ["STACKLEN",1,0,1],
     ["MEMORYLEN",1,0,1],
@@ -21,7 +23,7 @@ REQS = [
     ["DEALLOC",1,2,-2],
     ["ADD",1,2,-1],
     ["SUB",1,2,-1],
-    ["NOT",1,1,0]
+    ["NOT",1,1,0],
     ["MUL",1,2,-1],
     ["DIV",1,2,-1],
     ["MOD",1,2,-1],
@@ -77,7 +79,7 @@ def step(state):
 
     instr = state[CODE][ip]
 
-    reqs = REQS[instr.split()[0]]
+    reqs = REQS[instr]
 
     # Check if extended instructions are within code bounds
     if ip + reqs[1] >= len(state[CODE]):
@@ -97,8 +99,9 @@ def step(state):
     def next(jump=None):
         """Pops arguments. Sets the instruction pointer"""
         nonlocal state
+
         if reqs[3] < 0:
-            state[STACK] = state[STACK][:-reqs[3]]
+            state[STACK] = state[STACK][:reqs[3]]
             state[MEM] += abs(reqs[3])
 
         if jump is None:
@@ -160,7 +163,7 @@ def step(state):
         state[STATUS] = HALT
         next()
     elif instr == RUN:
-        area, gas, mem = stack[-3:]
+        area, gas, mem = state[STACK][-3:]
         if validarea(area):
             child = state[MEMORY][area]
             # Is this even required? nope.
@@ -177,8 +180,11 @@ def step(state):
             next()
     elif instr == JUMP:
         next(top())
-    elif instr[:4] == PUSH:
-        state[STACK].append(instr.split()[1])
+    elif instr == JZ:
+        if state[STACK][-2] == 0:
+            next(top())
+    elif instr == PUSH:
+        state[STACK].append(state[CODE][ip+1])
         next()
     elif instr == STACKLEN:
         if push(len(state[STACK])):
@@ -187,30 +193,28 @@ def step(state):
         if push(len(state[MEMORY])):
             next()
     elif instr == AREALEN:
-        area = stack[-1]
+        area = state[STACK][-1]
         if validarea(area):
             if push(len(state[MEMORY][area])):
                 next()
     elif instr == READ:
-        area, addr = stack[-2:]
+        area, addr = state[STACK][-2:]
         if validmemory(area, addr):
             if push(state[MEMORY][area][addr]):
-                stack = stack[:-2]
                 next()
     elif instr == WRITE:
-        area, addr, value = stack[-3:]
+        area, addr, value = state[STACK][-3:]
         if validmemory(area, addr):
             state[MEMORY][area][addr] = value
-            stack = stack[:-3]
             next()
     elif instr == AREA:
         # This should cost 1 mem
         if hasmem(1):
-            state[MEMORY].append()
+            state[MEMORY].append([])
             state[MEM] -= 1
             next()
     elif instr == ALLOC:
-        area, size = stack[-2:]
+        area, size = state[STACK][-2:]
         # Technically, -2
         if hasmem(size):
             if validarea(area):
@@ -218,7 +222,7 @@ def step(state):
                 state[MEMORY][area] += [0] * size
                 next()
     elif instr == DEALLOC:
-        area, size = stack[-2:]
+        area, size = state[STACK][-2:]
         if validarea(area):
             if len(state[MEMORY][area]) <= size:
                 state[MEM] += size
@@ -227,43 +231,62 @@ def step(state):
             else:
                 state[STATUS] = OOB
     elif instr == ADD:
-        op1, op2 = stack[-2:]
-        stack[-2] = op1 + op2
+        op1, op2 = state[STACK][-2:]
+        state[STACK][-2] = op1 + op2
         next()
     elif instr == SUB:
-        op1, op2 = stack[-2:]
-        stack[-2] = op1 - op2
+        op1, op2 = state[STACK][-2:]
+        state[STACK][-2] = op1 - op2
         next()
     elif instr == NOT:
-        stack[-1] = ~stack[-1]
+        state[STACK][-1] = ~state[STACK][-1]
         next()
     elif instr == MUL:
-        op1, op2 = stack[-2:]
-        stack[-2] = op1 * op2
+        op1, op2 = state[STACK][-2:]
+        state[STACK][-2] = op1 * op2
         next()
     elif instr == DIV:
-        op1, op2 = stack[-2:]
-        stack[-2] = op1 // op2
+        op1, op2 = state[STACK][-2:]
+        state[STACK][-2] = op1 // op2
         next()
     elif instr == MOD:
-        op1, op2 = stack[-2:]
-        stack[-2] = op1 % op2
+        op1, op2 = state[STACK][-2:]
+        state[STACK][-2] = op1 % op2
         next()
     else:
         state[STATUS] = UOC
 
     return s(state)
 
-def run(state):
+def run(state, gas=100, mem=100):
+    state[GAS] = gas
+    state[MEM] = mem
     while True:
-        if state[0] > NORMAL:
+        if state[STATUS] > NORMAL:
+            state = d(state)
+            print(STATI[state[STATUS]])
+            try:
+                print(REQS[state[CODE][state[IP]]])
+            except IndexError:
+                pass
+            print(state)
             break
+        out = d(state)
+        try:
+            print("INSTR", REQS[out[CODE][out[IP]]][0], "@", out[IP])
+        except IndexError:
+            pass
         state = step(state)
-        print(state)
+        out = d(state)
+        print(out[STACK], out[MEMORY])
 
-state = s([0, 100, 100, 0, [], [], [
-    s([0, 100, 100, 0, [], [], []])]
-])
+def inject(code):
+    return s([0, 100, 100, 0, code, [], []])
 
-print(state)
-run(state)
+if __name__ == "__main__":
+    state = s([0, 100, 100, 0, [], [], [
+        s([0, 100, 100, 0, [], [], []])]
+    ])
+
+    print(state)
+    run(state)

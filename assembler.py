@@ -1,5 +1,8 @@
-from current import INSTRUCTIONS as opcodes
+from exalloc import REQS, PUSH
 import sys
+
+opcodes = [req[0].lower() for req in REQS]
+#print(opcodes)
 
 def assemble(text):
     lines = text.split("\n")
@@ -46,7 +49,7 @@ def assemble(text):
             continue
         op = line["opline"][0]
         if op == "push":
-            line["code"] = [0, intorlabel(line["opline"][1])]
+            line["code"] = [PUSH, intorlabel(line["opline"][1])]
         elif op in opcodes:
             line["code"] = [opcodes.index(op)]
         else:
@@ -68,6 +71,7 @@ def assemble(text):
             line["code"] = [labels[exp] if exp in labels else exp for exp in line["code"]]
             total += line["code"]
 
+    """
     for i, line in enumerate(lines):
         if line["type"] == "code":
             print("%i\t%i\t%s\t%s" % (line["opcount"], line["offset"], " ".join(map(str, line["code"])), "\t".join(line["opline"])))
@@ -76,6 +80,7 @@ def assemble(text):
 
     #print("".join(map(lambda x:hex(x)[2:].zfill(16), total)))
     print(total)
+    """
     return total
 #bfile = open("bytecode.js", "w+")
 #bfile.write("var code = "+str(code))
