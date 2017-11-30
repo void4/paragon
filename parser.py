@@ -1,4 +1,4 @@
-from lark import Lark, Transformer
+from lark import Lark, Tree, Transformer
 
 grammar = r"""
 
@@ -20,13 +20,18 @@ start: (_NEWLINE | stmt)*
 
 
 ?stmt: simple_stmt | compound_stmt
-?simple_stmt: (expr_stmt | flow_stmt) _NEWLINE
+?simple_stmt: (expr_stmt | flow_stmt | write_stmt | dealloc_stmt | dearea_stmt) _NEWLINE
 ?expr_stmt: NAME "=" (test | expr) -> assign
           | test
 
-?flow_stmt: return_stmt | halt_stmt
-?halt_stmt: "halt"
+write_stmt: "$write" "(" expr "," expr "," expr ")"
+dealloc_stmt: "$dealloc" expr
+dearea_stmt: "$dearea" expr
+?flow_stmt: pass_stmt | return_stmt | halt_stmt
+pass_stmt: "pass"
 return_stmt: "return" (test | NAME)
+?halt_stmt: "halt"
+
 
 ?test: or_test
 ?or_test: and_test ("or" and_test)*
@@ -44,8 +49,14 @@ return_stmt: "return" (test | NAME)
          | molecule "[" [subscriptlist] "]" -> getitem
          | atom
 ?atom: "[" listmaker "]"
-     | NAME | number | ESCAPED_STRING
+     | primitive | NAME | number | ESCAPED_STRING
 
+?primitive: stacklen | memorylen | arealen_expr | read_expr | sha256_expr
+arealen_expr: "$arealen" "(" expr ")"
+read_expr: "$read" "(" expr "," expr ")"
+sha256_expr: "$sha256" "(" expr ")"
+?stacklen: "$stacklen"
+?memorylen: "$memorylen"
 
 !_factor_op: "+"|"-"|"~"
 !_add_op: "+"|"-"
@@ -61,7 +72,7 @@ argument: test
 if_stmt: "if" test ":" suite ["else" ":" suite]
 suite: _NEWLINE _INDENT _NEWLINE? stmt+ _DEDENT _NEWLINE?
 
-while_stmt: "while" test ":" suite
+while_stmt: "while" [test] ":" suite
 
 funcdef: "def" NAME "(" [parameters] ")" ":" suite
 parameters: paramvalue ("," paramvalue)*
@@ -107,6 +118,13 @@ def parse(code):
     def varint(node):
         if isinstance(node, list):
             return node
+        elif isinstance(node, Tree):
+            if node.data == "stacklen":
+                return ["STACKLEN"]
+            elif node.data == "memorylen":
+                return ["MEMORYLEN"]
+            else:
+                raise Exception("Unknown TREE")
         if node.type == "DEC_NUMBER":
             return ["PUSH %i" % int(node.value)]
         else:
@@ -128,40 +146,66 @@ def parse(code):
             out += sum(node, [])
             return out
 
+        def write_stmt(self, node):
+            out = node[0]
+            out = node[1]
+            out = node[2]
+            out.append("WRITE")
+            return out
+
+        def dearea_stmt(self, node):
+            out = node[0]
+            out.append("DEAREA")
+            return out
+
+        def dealloc_stmt(self, node):
+            out = node[0]
+            out.append("DEALLOC")
+            return out
+
         def suite(self, node):
             return sum(node, [])
 
         def if_stmt(self, node):
-            #print("ifstmt", node)
+            print("ifstmt", node)
             out = []
             out += node[0]
-            else_label = genlabel()
+
             end_label = genlabel()
-            out.append("PUSH %s" % else_label)
+
+            if len(node) == 3:
+                else_label = genlabel()
+                out.append("PUSH %s" % else_label)
+            else:
+                out.append("PUSH %s" % end_label)
             out.append("JZ")
             out += node[1]
-            out.append("PUSH %s" % end_label)
-            out.append("JUMP")
-            out.append(else_label+":")
-            out += node[2]
+            if len(node) == 3:
+                out.append("PUSH %s" % end_label)
+                out.append("JUMP")
+                out.append(else_label+":")
+                out += node[2]
             out.append(end_label+":")
             return out
 
         def while_stmt(self, node):
-            print("while", node)
+            #print("while", node)
             out = []
             start_label = genlabel()
             end_label = genlabel()
 
             out.append(start_label+":")
 
-            out += node[0]
+            if len(node) == 2:
+                out += node[0]
 
-            out.append("NOT")
-            out.append("PUSH %s" % end_label)
-            out.append("JZ")
+                out.append("NOT")
+                out.append("PUSH %s" % end_label)
+                out.append("JZ")
 
-            out += node[1]
+                out += node[1]
+            else:
+                out += node[0]
 
             out.append("PUSH %s" % start_label)
             out.append("JUMP")
@@ -191,6 +235,24 @@ def parse(code):
             out += varint(node[2])
             out.append("%s" % {"+":"ADD", "-":"SUB", "~":"NOT"}[node[1].value])
             return out
+
+        def arealen_expr(self, node):
+            out = varint(node[0])
+            out.append("AREALEN")
+            return out
+
+        def read_expr(self, node):
+            out = varint(node[0]) + varint(node[1])
+            out.append("READ")
+            return out
+
+        def sha256_expr(self, node):
+            out = varint(node[0])
+            out.append("SHA256")
+            return out
+
+        def pass_stmt(self, node):
+            return []
 
         def halt_stmt(self, node):
             return ["HALT"]
@@ -232,6 +294,7 @@ def parse(code):
 
     print("Optimized:", len(asm), "Unoptimized:", len(assemble(text_unopt)))
     print(asm)
+    print(vard)
     return asm
 
 def optimize(text):

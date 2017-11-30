@@ -1,66 +1,41 @@
 
-
+# a = a + #valid?!
 code = """
+before = 0
+after = 0
 a = 0
-
-while a!= 2000:
-    a = a + 1
+while:
+    # Remember number of memory areas
+    before = $memorylen
+    # Halt computation, expect input in new memory area
     halt
+    # Check number of areas again
+    # If they are different, there's a new one
+    # Assuming none were deleted, of course
+    if before != $memorylen:
+        if $arealen($memorylen-1) != 0:
+            pass
+            #a = $read($memorylen-1, 0)
+        #$dearea $memorylen - 1
+    #else:
+    #    a = $sha256(a)
 
 """
 
 from parser import parse
-asm = parse(code)
+state = parse(code)
 #print(list(code))
-from exalloc import run
-state = run(asm, 100, 100)
+from exalloc import run, d, s, MEMORY
+
+while True:
+    state = run(state, 100, 100)
+    state = d(state)
+    inp = input()
+    if len(inp):
+        state[MEMORY].append([int(inp)])#.append(int(inp))#
+    state = s(state)
 
 #print("".join([hex(v)[2:].zfill(16) for v in inject(asm)]))
-
-def conv(array):
-    return sum([[int(i) for i in element.to_bytes(4, byteorder="big", signed=False)] for element in array], [])
-
-import zlib
-import base64
-import struct
-
-def minify(state):
-    byte = conv(state)
-    #print(byte)
-    bytearr = bytearray(byte)
-    #bytearr = struct.pack(">I" % (len(byte)), byte)
-    compressed = zlib.compress(bytearr)
-    print("Uncompressed:", len(bytearr), "Compressed:", len(compressed))
-
-    #hex_string = "".join("%02x" % b for b in compressed)
-    #print("Hex:", hex_string, len(hex_string))
-
-    b64c = base64.b64encode(compressed)
-
-
-    return b64c
-
-def maxify(b64c):
-    compressed = base64.b64decode(b64c)
-    bytearr = zlib.decompress(compressed)
-    array = struct.unpack(">%iI" % (len(bytearr)//4), bytearr)
-    return list(array)
-
-minified = minify(state)
-maxified = maxify(minified)
-#print("Minified:", minified)
-#print("Maxified:", maxified)
-
-print("Base64:", minified, len(minified))
-
-assert state == maxified
-
-"""
-import hashlib
-hsh = hashlib.sha224(bytearr).hexdigest()
-
-print("Hash:", hsh)
-"""
 
 from assembler import assemble
 code = """
@@ -68,5 +43,5 @@ PUSH 0
 SHA256
 """
 asm = assemble(code)
-print(asm)
-print(run(asm, 100, 100))
+#print(asm)
+#print(run(asm, 100, 100))

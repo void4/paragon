@@ -10,7 +10,7 @@ STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 NORMAL, FROZEN, VOLHALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(21)
+HALT, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(22)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
@@ -22,11 +22,11 @@ REQS = [
     ["DUP",1,0,1],
     ["STACKLEN",1,0,1],
     ["MEMORYLEN",1,0,1],
-    ["AREALEN",1,1,0],
+    ["AREALEN",1,1,-1],
     ["READ",1,2,-1],
     ["WRITE",1,3,-3],
     ["AREA",1,0,1],
-    #["DEAREA",1,1,0],#!use after free!
+    ["DEAREA",1,1,-1],#!use after free!
     ["ALLOC",1,2,-2],
     ["DEALLOC",1,2,-2],
     ["ADD",1,2,-1],
@@ -226,6 +226,10 @@ def step(state):
             state[MEMORY].append([])
             state[MEM] -= 1
             next()
+    elif instr == DEAREA:
+        state[MEM] += len(state[MEMORY][top()])
+        state[MEMORY].pop(top())
+        next()
     elif instr == ALLOC:
         area, size = state[STACK][-2:]
         # Technically, -2
@@ -286,11 +290,13 @@ def run(state, gas=100, mem=100):
         if state[STATUS] > NORMAL:
             dstate = d(state)
             print(STATI[dstate[STATUS]])
+            """
             try:
                 print(REQS[dstate[CODE][dstate[IP]]])
             except IndexError:
                 pass
             print(dstate)
+            """
             break
         out = d(state)
         try:
