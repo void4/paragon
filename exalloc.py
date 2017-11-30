@@ -273,13 +273,13 @@ def run(state, gas=100, mem=100):
     state[MEM] = mem
     while True:
         if state[STATUS] > NORMAL:
-            state = d(state)
-            print(STATI[state[STATUS]])
+            dstate = d(state)
+            print(STATI[dstate[STATUS]])
             try:
-                print(REQS[state[CODE][state[IP]]])
+                print(REQS[dstate[CODE][dstate[IP]]])
             except IndexError:
                 pass
-            print(state)
+            print(dstate)
             break
         out = d(state)
         try:
@@ -289,6 +289,7 @@ def run(state, gas=100, mem=100):
         state = step(state)
         out = d(state)
         print(out[STACK], out[MEMORY])
+    return state
 
 def inject(code):
     return s([FROZEN, 0, 0, 0, code, [], []])

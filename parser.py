@@ -224,7 +224,7 @@ def parse(code):
     text_unopt = "\n".join(text)
     text_opt = optimize(text)
     text_opt = "\n".join(text_opt)
-
+    print(text_opt)
     asm = assemble(text_opt)
 
     print("Optimized:", len(asm), "Unoptimized:", len(assemble(text_unopt)))
