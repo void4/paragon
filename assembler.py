@@ -45,8 +45,8 @@ def assemble(text):
         text = text.split("\n")
     text_unopt = "\n".join(text)
     text_opt = text
-    for i in range(5):
-        text_opt = optimize(text_opt)
+    #for i in range(5):
+    #    text_opt = optimize(text_opt)
     text_opt = "\n".join(text_opt)
     print(text_opt)
     asm = translate(text_opt)
