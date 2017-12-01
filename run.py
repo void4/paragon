@@ -19,26 +19,6 @@ while:
         a = $sha256(a)
 
 """
-import os
-from hashlib import sha256
-class Key:
-    def __init__(self, depth):
-        self.private = os.urandom(32)
-        self.depth = depth
-    def __next__(self):
-        if self.depth == 0:
-            raise Exception("Last key!")
-        key = self.private
-        for i in range(self.depth):
-            key = sha256(key).digest()
-
-        self.depth -= 1
-        return key
-
-key = Key(10)
-for i in range(key.depth):
-    print(next(key))
-print(key.private)
 
 from parser import parse
 state = parse(code)
