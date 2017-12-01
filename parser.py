@@ -27,10 +27,11 @@ start: (_NEWLINE | stmt)*
 write_stmt: "$write" "(" expr "," expr "," expr ")"
 dealloc_stmt: "$dealloc" "(" expr ")"
 dearea_stmt: "$dearea" "(" expr ")"
-?flow_stmt: pass_stmt | return_stmt | halt_stmt
+?flow_stmt: pass_stmt | return_stmt | halt_stmt | area_stmt
 pass_stmt: "pass"
 return_stmt: "return" (test | NAME)
 ?halt_stmt: "halt"
+?area_stmt: "$area"
 
 
 ?test: or_test
@@ -143,6 +144,9 @@ def parse(code):
         def start(self, node):
             out = []
             out.append("AREA")
+            out.append("PUSH %i" % area)
+            out.append("PUSH %i" % len(vard))
+            out.append("ALLOC")
             out += sum(node, [])
             return out
 
@@ -257,6 +261,9 @@ def parse(code):
         def halt_stmt(self, node):
             return ["HALT"]
 
+        def area_stmt(self, node):
+            return ["AREA"]
+
         def assign(self, node):
             nonlocal vard
             #print("=",node)
@@ -265,10 +272,7 @@ def parse(code):
             out = []
             out.append("PUSH %i" % area)
             if isinstance(target, str):
-                if target not in vard:
-                    out.append("PUSH %i" % area)
-                    out.append("PUSH 1")
-                    out.append("ALLOC")
+                if not target in vard:
                     vard[target] = len(vard)
                 target = vard[target]
             out.append("PUSH %i" % target)
