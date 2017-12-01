@@ -29,7 +29,7 @@ dealloc_stmt: "$dealloc" "(" expr ")"
 dearea_stmt: "$dearea" "(" expr ")"
 ?flow_stmt: pass_stmt | return_stmt | halt_stmt | area_stmt
 pass_stmt: "pass"
-return_stmt: "return" (test | NAME)
+return_stmt: "$return" //[test | NAME]
 ?halt_stmt: "halt"
 ?area_stmt: "$area"
 
@@ -171,7 +171,7 @@ def parse(code):
             return sum(node, [])
 
         def if_stmt(self, node):
-            print("ifstmt", node)
+            #print("ifstmt", node)
             out = []
             out += node[0]
 
@@ -257,6 +257,9 @@ def parse(code):
 
         def pass_stmt(self, node):
             return []
+
+        def return_stmt(self, node):
+            return ["RETURN"]
 
         def halt_stmt(self, node):
             return ["HALT"]

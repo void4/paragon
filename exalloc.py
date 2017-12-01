@@ -7,14 +7,15 @@ WMASK = WMAX-1
 
 STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
 
-NORMAL, FROZEN, VOLHALT, OOG, OOC, OOS, OOM, OOB, UOC = range(9)
+NORMAL, FROZEN, VOLHALT, VOLRETURN, OOG, OOC, OOS, OOM, OOB, UOC = range(10)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(22)
+HALT, RETURN, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(23)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
     ["HALT",1,0,0],
+    ["RETURN",1,0,0],
     ["RUN",1,1,0],
     ["JUMP",1,1,-1],
     ["JZ",1,2,-2],
@@ -170,6 +171,9 @@ def step(state):
     if instr == HALT:
         state[STATUS] = VOLHALT
         next()
+    elif instr == RETURN:
+        state[STATUS] = VOLRETURN
+        next()
     elif instr == RUN:
         area, gas, mem = state[STACK][-3:]
         if validarea(area):
@@ -282,14 +286,15 @@ def step(state):
 
     return s(state)
 
-def run(state, gas=100, mem=100):
+def run(state, gas=100, mem=100, debug=False):
     state[STATUS] = NORMAL
     state[GAS] = gas
     state[MEM] = mem
     while True:
         if state[STATUS] > NORMAL:
-            dstate = d(state)
-            print(STATI[dstate[STATUS]], dstate[GAS], dstate[MEM])
+            if debug:
+                dstate = d(state)
+                print(STATI[dstate[STATUS]], dstate[GAS], dstate[MEM])
             """
             try:
                 print(REQS[dstate[CODE][dstate[IP]]])
@@ -298,14 +303,16 @@ def run(state, gas=100, mem=100):
             print(dstate)
             """
             break
-        out = d(state)
-        try:
-            print("INSTR", REQS[out[CODE][out[IP]]][0], "@", out[IP])
-        except IndexError:
-            pass
+        if debug:
+            out = d(state)
+            try:
+                print("INSTR", REQS[out[CODE][out[IP]]][0], "@", out[IP])
+            except IndexError:
+                pass
         state = step(state)
-        out = d(state)
-        print(out[STACK], out[MEMORY])
+        if debug:
+            out = d(state)
+            print(out[STACK], out[MEMORY])
     return state
 
 def inject(code):
