@@ -5,7 +5,7 @@ WORDSIZE = 8*BYTESIZE
 WMAX = 2**WORDSIZE
 WMASK = WMAX-1
 
-STATUS, GAS, MEM, IP, CODE, STACK, MEMORY = range(7)
+STATUS, GAS, MEM, IP, LENCODE, LENSTACK, LENMEMORY, CODE, STACK, MEMORY = range(10)
 
 NORMAL, FROZEN, VOLHALT, VOLRETURN, OOG, OOC, OOS, OOM, OOB, UOC = range(10)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
@@ -41,7 +41,7 @@ REQS = [
 
 def s(state):
     """Flattens and serializes the nested state structure"""
-    flat = state[:CODE]
+    flat = state[:LENCODE]
     flat += [len(state[CODE])]
     flat += [len(state[STACK])]
     flat += [len(state[MEMORY])]
@@ -54,23 +54,21 @@ def s(state):
 
 def d(state):
     """Deserializes and restores the runtime state structure from the flat version"""
-    index = CODE
-    sharp = state[:index]
-    lencode = state[CODE]
-    lenstack = state[STACK]
-    lenmemory = state[MEMORY]
+    sharp = state[:LENMEMORY+1]
+    lencode = state[LENCODE]
+    lenstack = state[LENSTACK]
+    lenmemory = state[LENMEMORY]
 
-    sharp.append(state[MEMORY+1:MEMORY+1+lencode])
-    sharp.append(state[MEMORY+1+lencode:MEMORY+1+lencode+lenstack])
+    sharp.append(state[LENMEMORY+1:LENMEMORY+1+lencode])
+    sharp.append(state[LENMEMORY+1+lencode:LENMEMORY+1+lencode+lenstack])
 
     sharp.append([])
     #print(lencode, lenstack, lenmemory)
-    index = MEMORY+1+lencode+lenstack
+    index = LENMEMORY+1+lencode+lenstack
     for area in range(lenmemory):
-        end = index + state[index]
-        #print(state[index], index, end)
-        sharp[-1].append(state[index:end])
-        index = end + 1
+        lenarea = state[index]
+        sharp[-1].append(state[index+1:index+1+lenarea])
+        index = index + 1 + lenarea
     return sharp
 
 def step(state):
@@ -91,9 +89,14 @@ def step(state):
         return s(state)
 
     instr = state[CODE][ip]
-    reqs = REQS[instr]
-    print(reqs[0])
+    print(instr, ip)
     print(state)
+    reqs = REQS[instr]
+    print("")
+    print(reqs[0])
+    print(state[:-1])
+    for area in state[-1]:
+        print(">",area)
     # Check if extended instructions are within code bounds
     if ip + reqs[1] - 1 >= len(state[CODE]):
         state[STATUS] = OOC
