@@ -18,18 +18,30 @@ while:
             $dearea($memorylen - 1)
     else:
         a = $sha256(a)
+"""
 
+code = """
+
+def f():
+    x = 1
+    $return
+
+x = 42
+f(x)
 """
 
 from parser import parse
 state = parse(code)
 #print(list(code))
 from exalloc import run, d, s, MEMORY
+
+print(d(run(state, 1000, 100, debug=False)))
+"""
 import sys, select
 import os
 from time import sleep
 clear = lambda : os.system('tput reset')
-while True:
+while False:
     state = run(state, 0xffffffff, 100)
     state = d(state)
     clear()
@@ -41,3 +53,4 @@ while True:
 
     state = s(state)
     sleep(0.1)
+"""

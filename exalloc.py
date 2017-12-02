@@ -43,10 +43,10 @@ def s(state):
     """Flattens and serializes the nested state structure"""
     flat = state[:CODE]
     flat += [len(state[CODE])]
-    flat += state[CODE]
     flat += [len(state[STACK])]
-    flat += state[STACK]
     flat += [len(state[MEMORY])]
+    flat += state[CODE]
+    flat += state[STACK]
     for area in state[MEMORY]:
         flat += [len(area)]
         flat += area
@@ -56,18 +56,21 @@ def d(state):
     """Deserializes and restores the runtime state structure from the flat version"""
     index = CODE
     sharp = state[:index]
-    end = index + state[index] + 1
-    sharp.append(state[index+1:end])
-    index = end
-    end = index + state[index] + 1
-    sharp.append(state[index+1:end])
-    index = end
+    lencode = state[CODE]
+    lenstack = state[STACK]
+    lenmemory = state[MEMORY]
+
+    sharp.append(state[MEMORY+1:MEMORY+1+lencode])
+    sharp.append(state[MEMORY+1+lencode:MEMORY+1+lencode+lenstack])
+
     sharp.append([])
-    index += 1
-    for area in range(state[index-1]):
-        end = index + state[index] + 1
-        sharp[-1].append(state[index+1:end])
-        index = end
+    #print(lencode, lenstack, lenmemory)
+    index = MEMORY+1+lencode+lenstack
+    for area in range(lenmemory):
+        end = index + state[index]
+        #print(state[index], index, end)
+        sharp[-1].append(state[index:end])
+        index = end + 1
     return sharp
 
 def step(state):
@@ -89,7 +92,8 @@ def step(state):
 
     instr = state[CODE][ip]
     reqs = REQS[instr]
-
+    print(reqs[0])
+    print(state)
     # Check if extended instructions are within code bounds
     if ip + reqs[1] - 1 >= len(state[CODE]):
         state[STATUS] = OOC
@@ -176,7 +180,7 @@ def step(state):
         next()
     elif instr == RUN:
         area, gas, mem = state[STACK][-3:]
-        if validarea(area):
+        if validarea(area) and len(state[MEMORY][area]) > 4:#HEADERLEN
             child = state[MEMORY][area]
             # Is this even required? nope.
             if child[STATUS] == FROZEN:

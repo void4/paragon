@@ -1,4 +1,4 @@
-from exalloc import REQS, PUSH, inject
+from exalloc import REQS, PUSH
 import sys
 
 opcodes = [req[0].lower() for req in REQS]
@@ -130,7 +130,7 @@ def translate(text):
     #print("".join(map(lambda x:hex(x)[2:].zfill(16), total)))
     print(total)
     """
-    return inject(total)
+    return total
 #bfile = open("bytecode.js", "w+")
 #bfile.write("var code = "+str(code))
 #bfile.close()
