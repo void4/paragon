@@ -5,12 +5,12 @@ WORDSIZE = 8*BYTESIZE
 WMAX = 2**WORDSIZE
 WMASK = WMAX-1
 
-STATUS, GAS, MEM, IP, LENCODE, LENSTACK, LENMEMORY, CODE, STACK, MEMORY = range(10)
+STATUS, GAS, MEM, IP, LENCODE, LENSTACK, LENMAP, LENMEMORY, CODE, STACK, MAP, MEMORY = range(12)
 
 NORMAL, FROZEN, VOLHALT, VOLRETURN, OOG, OOC, OOS, OOM, OOB, UOC = range(10)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RETURN, RUN, JUMP, JZ, PUSH, DUP, FLIP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(24)
+HALT, RETURN, RUN, JUMP, JZ, PUSH, POP, DUP, FLIP, KEYSET, KEYGET, KEYDEL, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(28)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
@@ -20,8 +20,12 @@ REQS = [
     ["JUMP",1,1,-1],
     ["JZ",1,2,-2],
     ["PUSH",2,0,1],
+    ["POP",1,0,0],
     ["DUP",1,0,1],
     ["FLIP",1,2,0],
+    ["KEYSET",1,2,-2],
+    ["KEYGET",1,1,0],
+    ["KEYDEL",1,1,-1],
     ["STACKLEN",1,0,1],
     ["MEMORYLEN",1,0,1],
     ["AREALEN",1,1,0],
@@ -45,9 +49,12 @@ def s(state):
     flat = state[:LENCODE]
     flat += [len(state[CODE])]
     flat += [len(state[STACK])]
+    flat += [len(state[MAP]) * 2]
     flat += [len(state[MEMORY])]
     flat += state[CODE]
     flat += state[STACK]
+    for k,v in state[MAP]:
+        flat += [k, v]
     for area in state[MEMORY]:
         flat += [len(area)]
         flat += area
@@ -58,14 +65,18 @@ def d(state):
     sharp = state[:LENMEMORY+1]
     lencode = state[LENCODE]
     lenstack = state[LENSTACK]
+    lenmap = state[LENMAP]
     lenmemory = state[LENMEMORY]
 
     sharp.append(state[LENMEMORY+1:LENMEMORY+1+lencode])
     sharp.append(state[LENMEMORY+1+lencode:LENMEMORY+1+lencode+lenstack])
+    hmap = state[LENMEMORY+1+lencode+lenstack:LENMEMORY+1+lencode+lenstack+lenmap]
+    hmap = list(zip(hmap[::2], hmap[1::2]))
+    sharp.append(hmap)
 
     sharp.append([])
     #print(lencode, lenstack, lenmemory)
-    index = LENMEMORY+1+lencode+lenstack
+    index = LENMEMORY+1+lencode+lenstack+lenmap
     for area in range(lenmemory):
         lenarea = state[index]
         sharp[-1].append(state[index+1:index+1+lenarea])
@@ -91,13 +102,14 @@ def step(state):
 
     instr = state[CODE][ip]
     print(instr, ip)
-    print(state)
+    print(state[STACK])
+    print(state[MAP])
     reqs = REQS[instr]
     print("")
     print(reqs[0])
-    print(state[:-1])
-    for area in state[-1]:
-        print(">",area)
+    #print(state[:-1])
+    #for area in state[-1]:
+    #    print(">",area)
     # Check if extended instructions are within code bounds
     if ip + reqs[1] - 1 >= len(state[CODE]):
         state[STATUS] = OOC
@@ -208,11 +220,40 @@ def step(state):
     elif instr == PUSH:
         state[STACK].append(state[CODE][ip+1])
         next()
+    elif instr == POP:
+        if len(state[STACK]) > 0:
+            state[STACK] = state[STACK][:-1]
+            state[MEM] += 1
     elif instr == DUP:
         state[STACK].append(top())
         next()
     elif instr == FLIP:
         state[STACK][-2:] = state[STACK][:-3:-1]
+        next()
+    elif instr == KEYSET:
+
+        if hasmem(2):
+            kv = (state[STACK][-2], state[STACK][-1])
+            for i, (k,v) in enumerate(state[MAP]):
+                if k == state[STACK][-2]:
+                    state[MAP][i] = kv
+                    state[MEM] -= 2
+                    break
+            else:
+                state[MAP].append(kv)
+            next()
+    elif instr == KEYGET:
+        for i, (k,v) in enumerate(state[MAP]):
+            if k == state[STACK][-1]:
+                state[STACK][-1] = v
+        next()
+    elif instr == KEYDEL:
+        newmap = []
+        for i, (k,v) in enumerate(state[MAP]):
+            if k != state[STACK][-1]:
+                newmap.append((k,v))
+                state[MEM] += 2
+        state[MAP] = newmap
         next()
     elif instr == STACKLEN:
         if push(len(state[STACK])):

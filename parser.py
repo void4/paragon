@@ -176,6 +176,8 @@ class Meta:
 
                 self.code[i] = "%s %i" % (line[0], pos)
 
+        self.code = ["PUSH 64", "PUSH 32", "KEYSET", "PUSH 64", "KEYGET", "PUSH 64", "KEYDEL"] + self.code
+        print("def0", self.code)
         asm = assemble(self.code)
         mem = []
         if len(self.vard):
@@ -184,8 +186,8 @@ class Meta:
             mem += []
         mem += [v for k,v in self.fund]
         sharp = [1,0,0,0]
-        sharp += [len(asm), 1, len(mem)]
-        sharp += [asm, [], mem]
+        sharp += [len(asm), 1, 0, len(mem)]
+        sharp += [asm, [], [], mem]
         sharp[STACK].append(len(sharp[MEMORY]))
         print(sharp)
         #print(s(sharp))

@@ -36,6 +36,8 @@ while:
 
 """
 
+# TODO ADD HASHMAP/TRIE to PROGRAM REPRESENTATION
+
 from parser import parse
 state = parse(code)
 #print(list(code))
