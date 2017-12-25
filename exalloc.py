@@ -10,17 +10,18 @@ STATUS, GAS, MEM, IP, LENCODE, LENSTACK, LENMEMORY, CODE, STACK, MEMORY = range(
 NORMAL, FROZEN, VOLHALT, VOLRETURN, OOG, OOC, OOS, OOM, OOB, UOC = range(10)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RETURN, RUN, JUMP, JZ, PUSH, DUP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(23)
+HALT, RETURN, RUN, JUMP, JZ, PUSH, DUP, FLIP, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(24)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
     ["HALT",1,0,0],
     ["RETURN",1,0,0],
-    ["RUN",1,1,0],
+    ["RUN",1,3,-3],
     ["JUMP",1,1,-1],
     ["JZ",1,2,-2],
     ["PUSH",2,0,1],
     ["DUP",1,0,1],
+    ["FLIP",1,2,0],
     ["STACKLEN",1,0,1],
     ["MEMORYLEN",1,0,1],
     ["AREALEN",1,1,0],
@@ -209,6 +210,9 @@ def step(state):
         next()
     elif instr == DUP:
         state[STACK].append(top())
+        next()
+    elif instr == FLIP:
+        state[STACK][-2:] = state[STACK][:-3:-1]
         next()
     elif instr == STACKLEN:
         if push(len(state[STACK])):

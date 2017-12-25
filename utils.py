@@ -34,6 +34,11 @@ def pretty(d, indent=0):
 				if isinstance(v, dict):
 					pretty(v, indent+1)
 				else:
-					print("\t" * (indent+1) + str(v)	)
+					if key == "memory":
+						print(str(v)+" ", end="")
+					else:
+						print("\t" * (indent+1) + str(v))
+			if key == "memory":
+				print("")
 		else:
 			print('\t' * (indent+1) + str(value))

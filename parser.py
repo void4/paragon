@@ -1,6 +1,6 @@
 from lark import Lark, Tree, Transformer
 from assembler import assemble
-from exalloc import d,s, MEMORY
+from exalloc import d,s, STACK, MEMORY
 import inspect
 grammar = r"""
 
@@ -53,7 +53,10 @@ return_stmt: "$return" //[test | NAME]
          | atom
 func_call: NAME ["<" expr ["," expr] ">"] "(" [arglist] ")"
 ?atom: "[" listmaker "]"
-     | primitive | NAME | number | ESCAPED_STRING
+     | primitive | NAME | number | ESCAPED_STRING | func_stat
+
+func_stat: NAME "." stat
+stat: "status" | "ip"
 
 ?primitive: stacklen | memorylen | arealen_expr | read_expr | sha256_expr
 arealen_expr: "$arealen" "(" expr ")"
@@ -87,6 +90,7 @@ parameters: paramvalue ("," paramvalue)*
 def indent(line):
     return (len(line)-len(line.lstrip(" ")))//4
 
+# TODO: Remove <DEDENT><INDENT> pairs
 def prep(code):
     code = code.split("\n")
     code.append("\n")
@@ -138,7 +142,7 @@ class Meta:
     def getfunindex(self, name):
         for index, fun in enumerate(self.fund):
             if fun[0] == name:
-                return index + 1 #AREA
+                return index# + 1 #AREA
 
     def getfun(self, name):
         for fun in self.fund:
@@ -165,7 +169,7 @@ class Meta:
                 name = line[1]
                 pos = self.getfunindex(name)
                 if pos is None:
-                    pos = self.vard.index(name) + 1
+                    pos = self.vard.index(name)# + 1
 
                 if pos is None:
                     raise Exception("Not found: %s" % name)
@@ -173,14 +177,19 @@ class Meta:
                 self.code[i] = "%s %i" % (line[0], pos)
 
         asm = assemble(self.code)
-        mem = [[0]*(len(self.vard)+1)]+[v for k,v in self.fund]
+        mem = []
+        if len(self.vard):
+            mem += [[0]*(len(self.vard))]
+        else:
+            mem += []
+        mem += [v for k,v in self.fund]
         sharp = [1,0,0,0]
-        sharp += [len(asm), 0, len(mem)]
+        sharp += [len(asm), 1, len(mem)]
         sharp += [asm, [], mem]
-        sharp[MEMORY][0][0] = len(sharp[MEMORY])
+        sharp[STACK].append(len(sharp[MEMORY]))
         print(sharp)
-        print(s(sharp))
-        print(d(s(sharp)))
+        #print(s(sharp))
+        #print(d(s(sharp)))
         return s(sharp)
 
 def parse(code):
@@ -207,7 +216,11 @@ def parse(code):
 
         def start(self, node):
             #print(node)
-            m = sum(node, Meta())
+            intro = Meta()
+            intro.append("MEMORYLEN")
+            intro.append("FLIP")
+            intro.append("SUB")
+            m = sum(node, intro)
             return m.final()
 
         def write_stmt(self, node):
