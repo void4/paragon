@@ -29,10 +29,11 @@ start: (_NEWLINE | stmt)*
 write_stmt: "$write" "(" expr "," expr "," expr ")"
 dealloc_stmt: "$dealloc" "(" expr ")"
 dearea_stmt: "$dearea" "(" expr ")"
-?flow_stmt: pass_stmt | return_stmt | halt_stmt | area_stmt
+?flow_stmt: pass_stmt | return_stmt | halt_stmt | await_stmt | area_stmt
 pass_stmt: "pass"
-return_stmt: "$return" //[test | NAME]
+return_stmt: "return" [expr | NAME]
 ?halt_stmt: "halt"
+?await_stmt: "await"
 ?area_stmt: "$area"
 
 
@@ -87,6 +88,7 @@ parameters: paramvalue ("," paramvalue)*
 ?param: NAME
 """
 
+# only spaces or also tabs?
 def indent(line):
     return (len(line)-len(line.lstrip(" ")))//4
 
@@ -115,14 +117,21 @@ class Meta:
 
     def __init__(self):
         self.code = []
-        self.vard = []
+        self.vard = ["NUMARGS"]
         self.fund = []
 
     def __add__(self, meta):
+        print(meta.__class__)
+        print(meta)
         if isinstance(meta, Meta):
+
             self.code += meta.code
             # Check for collisions here!
-            self.vard = list(set().union(self.vard, meta.vard))
+            # nondeterministic garbage
+            #self.vard = list(set().union(self.vard, meta.vard))
+            for var in meta.vard:
+                if var not in self.vard:
+                    self.vard.append(var)
             #self.fund = list(set().union(self.fund, meta.fund))
             for fun in meta.fund:
                 if self.getfun(fun[0]) is not None:
@@ -169,27 +178,26 @@ class Meta:
                 name = line[1]
                 pos = self.getfunindex(name)
                 if pos is None:
-                    pos = self.vard.index(name)# + 1
+                    pos = self.vard.index(name)
 
                 if pos is None:
                     raise Exception("Not found: %s" % name)
 
                 self.code[i] = "%s %i" % (line[0], pos)
 
-        self.code = ["PUSH 64", "PUSH 32", "KEYSET", "PUSH 64", "KEYGET", "PUSH 64", "KEYDEL"] + self.code
-        print("def0", self.code)
+        #self.code = ["PUSH 64", "PUSH 32", "KEYSET", "PUSH 64", "KEYGET", "PUSH 64", "KEYDEL"] + self.code
+        #print("def0", self.code)
         asm = assemble(self.code)
-        mem = []
-        if len(self.vard):
-            mem += [[0]*(len(self.vard))]
-        else:
-            mem += []
-        mem += [v for k,v in self.fund]
+        mem = [[0 for i in range(len(self.vard))]]
+        print(self.vard, self.fund)
+        if len(self.fund):
+            mem += [v for k,v in self.fund]
         sharp = [1,0,0,0]
         sharp += [len(asm), 1, 0, len(mem)]
         sharp += [asm, [], [], mem]
         sharp[STACK].append(len(sharp[MEMORY]))
         print(sharp)
+        #print(sharp[MEMORY])
         #print(s(sharp))
         #print(d(s(sharp)))
         return s(sharp)
@@ -219,16 +227,8 @@ def parse(code):
         def start(self, node):
             #print(node)
             intro = Meta()
-            intro.append("MEMORYLEN")
-            intro.append("FLIP")
-            intro.append("SUB")
             m = sum(node, intro)
             return m.final()
-
-        def write_stmt(self, node):
-            out = sum(node, Meta())
-            out.append("WRITE")
-            return out
 
         def dearea_stmt(self, node):
             out = sum(node, Meta())
@@ -245,8 +245,11 @@ def parse(code):
 
         def funcdef(self, node):
             m = Meta()
-            print(node)
-            m.initfun(node[0].value, node[-1].final())
+            body = node[-1]
+            for arg in node[1].children:
+                body.initvar(arg)
+
+            m.initfun(node[0].value, body.final())
 
             print(m.fund)
             return m
@@ -364,7 +367,7 @@ def parse(code):
             return out
 
         def comparison(self, node):
-            out = []
+            out = Meta()
             #print("==", node)
             out += varint(node[0])
             out += varint(node[2])
@@ -374,14 +377,15 @@ def parse(code):
             return out
 
         def term(self, node):
-            out = []
+            out = Meta()
             out += varint(node[0])
             out += varint(node[2])
             out.append("%s" % {"*":"MUL", "/":"DIV", "%":"MOD"}[node[1].value])
             return out
 
         def arith_expr(self, node):
-            out = []
+            out = Meta()
+            print(node[0])
             out += varint(node[0])
             out += varint(node[2])
             out.append("%s" % {"+":"ADD", "-":"SUB", "~":"NOT"}[node[1].value])
@@ -400,6 +404,15 @@ def parse(code):
             out.append("READ")
             return out
 
+        def write_stmt(self, node):
+            out = Meta()
+
+            out += varint(node[0])
+            out += varint(node[1])
+            out += varint(node[2])
+            out.append("WRITE")
+            return out
+
         def sha256_expr(self, node):
             out = varint(node[0])
             out.append("SHA256")
@@ -410,11 +423,32 @@ def parse(code):
 
         def return_stmt(self, node):
             m = Meta()
+            #print("RET", node)
+            m += node[0]
+            """
             m.append("PUSH 0")
             m.append("PUSH 0")
             m.append("MEMORYLEN")
             m.append("WRITE")
+            """
             m.append("RETURN")
+
+            return m
+
+        def await_stmt(self, node):
+            m = Meta()
+            m.append("MEMORYLEN")
+
+            m.append("RETURN")
+
+            m.append("MEMORYLEN")
+            m.append("FLIP")
+            m.append("SUB")
+            m.append("PUSH 0")
+            m.append("FLIP")
+            m.append("PUSH 0")
+            m.append("FLIP")
+            m.append("WRITE")
             return m
 
         def halt_stmt(self, node):

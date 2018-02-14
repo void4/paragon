@@ -5,9 +5,15 @@ from collections import OrderedDict
 # Evil hack 1 from
 #https://stackoverflow.com/questions/2352181/how-to-use-a-dot-to-access-members-of-dictionary
 class OrderedAttributeDict(OrderedDict):
-	__getattr__ = dict.__getitem__
-	__setattr__ = dict.__setitem__
-	__delattr__ = dict.__delitem__
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+    def __str__(self):
+        s = ""
+        for key, value in self.items():
+            s += key + ":\n" + str(value) + "\n"
+        return s[:-1]
 
 # Allows to create ordered dicts with simple syntax
 # Evil hack 2 from

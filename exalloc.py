@@ -23,6 +23,7 @@ REQS = [
     ["POP",1,0,0],
     ["DUP",1,0,1],
     ["FLIP",1,2,0],
+
     ["KEYSET",1,2,-2],
     ["KEYGET",1,1,0],
     ["KEYDEL",1,1,-1],
@@ -83,6 +84,17 @@ def d(state):
         index = index + 1 + lenarea
     return sharp
 
+from utils import odict
+
+def annotated(d):
+    return odict[
+        "header": d[:LENMEMORY+1],
+        "code": d[LENMEMORY+1],
+        "stack": d[LENMEMORY+2],
+        "map": d[LENMEMORY+3],
+        "memory": d[LENMEMORY+4],
+    ]
+
 def step(state):
     """Stateless step function. Maps states to states."""
 
@@ -103,7 +115,9 @@ def step(state):
     instr = state[CODE][ip]
     print(instr, ip)
     print(state[STACK])
+    print(state[MEMORY])
     print(state[MAP])
+
     reqs = REQS[instr]
     print("")
     print(reqs[0])
@@ -338,6 +352,8 @@ def step(state):
 
     return s(state)
 
+from time import sleep
+
 def run(state, gas=100, mem=100, debug=False):
     state[STATUS] = NORMAL
     state[GAS] = gas
@@ -346,25 +362,14 @@ def run(state, gas=100, mem=100, debug=False):
         if state[STATUS] > NORMAL:
             if debug:
                 dstate = d(state)
-                print(STATI[dstate[STATUS]], dstate[GAS], dstate[MEM])
-            """
-            try:
-                print(REQS[dstate[CODE][dstate[IP]]])
-            except IndexError:
-                pass
-            print(dstate)
-            """
+                #print(STATI[dstate[STATUS]], dstate[GAS], dstate[MEM])
+                print(dstate)
             break
-        if debug:
-            out = d(state)
-            try:
-                print("INSTR", REQS[out[CODE][out[IP]]][0], "@", out[IP])
-            except IndexError:
-                pass
         state = step(state)
         if debug:
             out = d(state)
             print(out[STACK], out[MEMORY])
+        sleep(1)
     return state
 
 def inject(code):

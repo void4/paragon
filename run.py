@@ -1,55 +1,47 @@
 
-# a = a + #valid?!
 code = """
-a = 4
-$return
-while:
-    # Remember number of memory areas
-    before = $memorylen
-    # Halt computation, expect input in new memory area
-    halt
-    # Check number of areas again
-    # If they are different, there's a new one
-    # Assuming none were deleted, of course
-    if before != $memorylen:
-        if $arealen($memorylen-1) != 0:
-            a = $read($memorylen-1, 0)
-        else:
-            $dearea($memorylen - 1)
-    else:
-        a = $sha256(a)
-"""
 
-code = """
-while:
-    def f():
-        x = 1
-        $return
+await
 
-    x = 42
-    f(x)
-"""
-
-code = """
 while:
-    x = 1
+    if NUMARGS == 1:
+        lastarea = $memorylen-1
+        if $arealen(lastarea) == 1:
+            $write(lastarea, 0, $read(lastarea, 0)+1)
+    await
 
 """
-
-# TODO ADD HASHMAP/TRIE to PROGRAM REPRESENTATION
 
 from parser import parse
 state = parse(code)
 #print(list(code))
-from exalloc import run, d, s, MEMORY
+from exalloc import run, annotated, d, s, STATUS, MEMORY, VOLRETURN
 
 # Append an argument
 state = d(state)
-state[MEMORY].append([0])
+#state[MEMORY].append([0])
 state = s(state)
 
 # Run state
-print(d(run(state, 15, 100, debug=False)))
+while True:
+    state = run(state, 10000, 10000, debug=True)
+    if state[STATUS] == VOLRETURN:
+        state = d(state)
+        state[MEMORY].append([int(input("Ready>"))])
+        state = s(state)
+#print(d(state))
+
+print(annotated(d(state)))
+
+from PIL import Image
+
+SIZE = 32
+SCALE = 8
+img = Image.new("RGB", (SIZE,SIZE), )
+for i,v in enumerate(state):
+    img.putpixel((int(i%SIZE), int(i/SIZE)), int(v%256))
+img = img.resize((SIZE*SCALE, SIZE*SCALE))
+#img.show()
 """
 import sys, select
 import os
