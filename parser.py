@@ -22,18 +22,18 @@ start: (_NEWLINE | stmt)*
 
 
 ?stmt: simple_stmt | compound_stmt
-?simple_stmt: (expr_stmt | flow_stmt | func_call | write_stmt | dealloc_stmt | dearea_stmt) _NEWLINE
+?simple_stmt: (expr_stmt | flow_stmt | func_call | write_stmt | alloc_stmt | dealloc_stmt | dearea_stmt) _NEWLINE
 ?expr_stmt: NAME "=" (test | expr) -> assign
           | test
 
 write_stmt: "$write" "(" expr "," expr "," expr ")"
+alloc_stmt: "$alloc" "(" expr "," expr ")"
 dealloc_stmt: "$dealloc" "(" expr ")"
 dearea_stmt: "$dearea" "(" expr ")"
-?flow_stmt: pass_stmt | return_stmt | halt_stmt | await_stmt | area_stmt
+?flow_stmt: pass_stmt | return_stmt | halt_stmt | area_stmt
 pass_stmt: "pass"
 return_stmt: "return" [expr | NAME]
 ?halt_stmt: "halt"
-?await_stmt: "await"
 ?area_stmt: "$area"
 
 
@@ -117,7 +117,7 @@ class Meta:
 
     def __init__(self):
         self.code = []
-        self.vard = ["NUMARGS"]
+        self.vard = []#["NUMARGS"]
         self.fund = []
 
     def __add__(self, meta):
@@ -195,7 +195,7 @@ class Meta:
         sharp = [1,0,0,0]
         sharp += [len(asm), 1, 0, len(mem)]
         sharp += [asm, [], [], mem]
-        sharp[STACK].append(len(sharp[MEMORY]))
+        #sharp[STACK].append(len(sharp[MEMORY]))
         print(sharp)
         #print(sharp[MEMORY])
         #print(s(sharp))
@@ -231,12 +231,21 @@ def parse(code):
             return m.final()
 
         def dearea_stmt(self, node):
-            out = sum(node, Meta())
+            out = Meta()
+            out += varint(node[0])
             out.append("DEAREA")
             return out
 
+        def alloc_stmt(self, node):
+            out = Meta()
+            out += varint(node[0])
+            out += varint(node[1])
+            out.append("ALLOC")
+            return out
+
         def dealloc_stmt(self, node):
-            out = sum(node, Meta())
+            out = Meta()
+            out += varint(node[0])
             out.append("DEALLOC")
             return out
 
@@ -424,17 +433,30 @@ def parse(code):
         def return_stmt(self, node):
             m = Meta()
             #print("RET", node)
-            m += node[0]
-            """
-            m.append("PUSH 0")
-            m.append("PUSH 0")
+
+            m += varint(node[0])
+
             m.append("MEMORYLEN")
+            m.append("PUSH 1")
+            m.append("SUB")
+
+            m.append("DUP")
+            m.append("DUP")
+
+            m.append("DEAREA")
+            m.append("AREA")
+
+            m.append("PUSH 1")
+            m.append("ALLOC")
+            m.append("FLIP")
+            m.append("PUSH 0")
+            m.append("FLIP")
+
             m.append("WRITE")
-            """
             m.append("RETURN")
 
             return m
-
+        """
         def await_stmt(self, node):
             m = Meta()
             m.append("MEMORYLEN")
@@ -449,8 +471,9 @@ def parse(code):
             m.append("PUSH 0")
             m.append("FLIP")
             m.append("WRITE")
-            return m
 
+            return m
+        """
         def halt_stmt(self, node):
             return ["HALT"]
 

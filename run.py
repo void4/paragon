@@ -1,14 +1,11 @@
 
 code = """
 
-await
-
+return 0
 while:
-    if NUMARGS == 1:
-        lastarea = $memorylen-1
-        if $arealen(lastarea) == 1:
-            $write(lastarea, 0, $read(lastarea, 0)+1)
-    await
+    if $arealen($memorylen-1) == 1:
+        return $read($memorylen-1, 0)+1
+
 
 """
 
@@ -19,7 +16,7 @@ from exalloc import run, annotated, d, s, STATUS, MEMORY, VOLRETURN
 
 # Append an argument
 state = d(state)
-#state[MEMORY].append([0])
+state[MEMORY].append([])
 state = s(state)
 
 # Run state
@@ -27,7 +24,16 @@ while True:
     state = run(state, 10000, 10000, debug=True)
     if state[STATUS] == VOLRETURN:
         state = d(state)
-        state[MEMORY].append([int(input("Ready>"))])
+        #if state[MEMORY][0][0] == 1:
+        if len(state[MEMORY]) > 1:
+            print("Returned: ", state[MEMORY][-1])
+            state[MEMORY] = state[MEMORY][:-1]
+        inp = input("Ready>")
+        if len(inp):
+            state[MEMORY].append([int(inp)])
+        else:
+            state = s(state)
+            break
         state = s(state)
 #print(d(state))
 
@@ -37,9 +43,9 @@ from PIL import Image
 
 SIZE = 32
 SCALE = 8
-img = Image.new("RGB", (SIZE,SIZE), )
+img = Image.new("RGB", (SIZE,SIZE))
 for i,v in enumerate(state):
-    img.putpixel((int(i%SIZE), int(i/SIZE)), int(v%256))
+    img.putpixel((int(i%SIZE), int(i/SIZE)), int(v%256)<<20)
 img = img.resize((SIZE*SCALE, SIZE*SCALE))
 #img.show()
 """

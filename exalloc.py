@@ -368,8 +368,8 @@ def run(state, gas=100, mem=100, debug=False):
         state = step(state)
         if debug:
             out = d(state)
-            print(out[STACK], out[MEMORY])
-        sleep(1)
+            #print(out[STACK], out[MEMORY])
+            sleep(0.1)
     return state
 
 def inject(code):
