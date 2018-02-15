@@ -1,6 +1,6 @@
 from lark import Lark, Tree, Transformer
 from assembler import assemble
-from exalloc import d,s, STACK, MEMORY
+from exalloc import d,s, STACK, MEMORY, LENMEMORY
 import inspect
 grammar = r"""
 
@@ -30,8 +30,9 @@ write_stmt: "$write" "(" expr "," expr "," expr ")"
 alloc_stmt: "$alloc" "(" expr "," expr ")"
 dealloc_stmt: "$dealloc" "(" expr ")"
 dearea_stmt: "$dearea" "(" expr ")"
-?flow_stmt: pass_stmt | return_stmt | halt_stmt | area_stmt
+?flow_stmt: pass_stmt | yield_stmt | return_stmt | halt_stmt | area_stmt
 pass_stmt: "pass"
+yield_stmt: "yield" [expr | NAME]
 return_stmt: "return" [expr | NAME]
 ?halt_stmt: "halt"
 ?area_stmt: "$area"
@@ -110,14 +111,12 @@ def prep(code):
         lines += prefix + line.lstrip() + "\n"
     return lines
 
-# Variable storage
-area = 0
-
 class Meta:
 
     def __init__(self):
         self.code = []
         self.vard = []#["NUMARGS"]
+        self.argd = []
         self.fund = []
 
     def __add__(self, meta):
@@ -148,10 +147,14 @@ class Meta:
         if not name in self.vard:
             self.vard.append(name)
 
+    def initarg(self, name):
+        if not name in self.argd:
+            self.argd.append(name)
+
     def getfunindex(self, name):
         for index, fun in enumerate(self.fund):
             if fun[0] == name:
-                return index# + 1 #AREA
+                return index + 1 #AREA
 
     def getfun(self, name):
         for fun in self.fund:
@@ -175,15 +178,40 @@ class Meta:
         print(self.vard)
         for i, line in enumerate(self.code):
             if isinstance(line, list):
-                name = line[1]
-                pos = self.getfunindex(name)
-                if pos is None:
-                    pos = self.vard.index(name)
+                if line[0] == "__PUSH":
+                    print("__P", line)
+                    name = line[1]
+                    pos = self.getfunindex(name)
+                    if pos is not None:
+                        self.code[i] = ["PUSH %i" % pos]
+                    else:
+                        try:
+                            self.code[i] = ["PUSH 0", "PUSH %i" % self.vard.index(name), "READ"]
+                        except ValueError:
+                            try:
+                                self.code[i] = ["MEMORYLEN", "PUSH 1", "SUB", "PUSH %i" % self.argd.index(name), "READ"]
+                            except ValueError:
+                                raise Exception("Not found: %s" % name)
+                elif line[0] == "__ADDR":
+                    try:
+                        self.code[i] = ["PUSH 0", "PUSH %i" % self.vard.index(line[1])]
+                    except ValueError:
+                        raise Exception("Address not found")
+                else:
+                    print("Unknown special form", line, i, line)
+                    exit(1)
 
-                if pos is None:
-                    raise Exception("Not found: %s" % name)
+        NEWCODE = []
+        for line in self.code:
+            if isinstance(line, str):
+                NEWCODE.append(line)
+            elif isinstance(line, list):
+                for subline in line:
+                    NEWCODE.append(subline)
+            else:
+                raise Exception("wat")
 
-                self.code[i] = "%s %i" % (line[0], pos)
+        self.code = NEWCODE
 
         #self.code = ["PUSH 64", "PUSH 32", "KEYSET", "PUSH 64", "KEYGET", "PUSH 64", "KEYDEL"] + self.code
         #print("def0", self.code)
@@ -216,7 +244,7 @@ def parse(code):
         if isinstance(node, list) or isinstance(node, Meta):
             return node
         elif isinstance(node, str):
-            return ["PUSH %i" % area, ["PUSH", node.value], "READ"]
+            return [["__PUSH", node.value]]
         elif node.data == "number" and node.children[0].type == "DEC_NUMBER":
             return ["PUSH %i" % int(node.children[0].value)]
         else:
@@ -256,7 +284,7 @@ def parse(code):
             m = Meta()
             body = node[-1]
             for arg in node[1].children:
-                body.initvar(arg)
+                body.initarg(arg)
 
             m.initfun(node[0].value, body.final())
 
@@ -267,49 +295,46 @@ def parse(code):
             print("CALL", len(node), node)
             m = Meta()
 
+            # Save initial size for later
+
+            m.append(["__PUSH", node[0].value])
+            m.append("AREALEN")
+            m.append("DUP")
+            m.append(["__PUSH", node[0].value])
+            m.append("FLIP")
+
             # Increase area size
-            m.append(["PUSH", node[0].value])
-            m.append("PUSH %i" % (len(node[-1].children) * 2))
+            m.append(["__PUSH", node[0].value])
+            m.append("PUSH %i" % (len(node[-1].children)+1))
             m.append("ALLOC")
 
-            # Increase number of child areas
-            m.append(["PUSH", node[0].value])
-            m.append("PUSH %i" % MEMORY)
-            m.append(["PUSH", node[0].value])
-            m.append("PUSH %i" % MEMORY)
+            # Increase number of child areas by 1
+            m.append(["__PUSH", node[0].value])
+            m.append("PUSH %i" % LENMEMORY)
+            m.append(["__PUSH", node[0].value])
+            m.append("PUSH %i" % LENMEMORY)
             m.append("READ")
-            m.append("PUSH %i" % len(node[-1].children))
+            m.append("PUSH 1")
             m.append("ADD")
+            m.append("WRITE")
+
+            # Set last child area size to number of arguments
+            m.append("PUSH %i" % len(node[-1].children))
             m.append("WRITE")
 
             for num, arg in enumerate(node[-1].children[::-1]):
 
-                # WRITE AREA SIZE
-                # Push area index
-                m.append(["PUSH", node[0].value])
-                # Put AREALEN on stack
                 m.append("DUP")
-                m.append("AREALEN")
-                # Get length position
-                m.append("PUSH %i" % (num*2+2))
-                m.append("SUB")
-                # Write length 1
-                m.append("PUSH 1")
-                m.append("WRITE")
-
-                # WRITE VALUE
-                # Push area index
-                m.append(["PUSH", node[0].value])
-                # Put AREALEN on stack
-                m.append("DUP")
-                m.append("AREALEN")
-                # Get length position
-                m.append("PUSH %i" % (num*2+1))
-                m.append("SUB")
+                m.append("PUSH %i" % (num+1))
+                m.append("ADD")
+                m.append(["__PUSH", node[0].value])
+                m.append("FLIP")
                 m += varint(arg.children[0])
                 m.append("WRITE")
 
-            m.append(["PUSH", node[0].value])
+            m.append("POP")
+
+            m.append(["__PUSH", node[0].value])
             if len(node) == 2:
                 m.append("PUSH 9999999")
                 m.append("PUSH 9999999")
@@ -321,6 +346,31 @@ def parse(code):
                 m += varint(node[2])
 
             m.append("RUN")
+
+            # Put return values on stack
+            m.append(["__PUSH", node[0].value])
+            m.append(["__PUSH", node[0].value])
+            m.append("AREALEN")
+            m.append("PUSH 1")
+            m.append("SUB")
+            m.append("READ")
+
+            # TODO remove return area from child
+
+            # Decrease area size
+            m.append(["__PUSH", node[0].value])
+            m.append("PUSH %i" % (len(node[-1].children)+1))
+            m.append("DEALLOC")
+
+            # Decrease number of child areas by 1
+            m.append(["__PUSH", node[0].value])
+            m.append("PUSH %i" % LENMEMORY)
+            m.append(["__PUSH", node[0].value])
+            m.append("PUSH %i" % LENMEMORY)
+            m.append("READ")
+            m.append("PUSH 1")
+            m.append("SUB")
+            m.append("WRITE")
             return m
 
         def if_stmt(self, node):
@@ -456,6 +506,34 @@ def parse(code):
             m.append("RETURN")
 
             return m
+
+        def yield_stmt(self, node):
+            m = Meta()
+            #print("RET", node)
+
+            m += varint(node[0])
+
+            m.append("MEMORYLEN")
+            m.append("PUSH 1")
+            m.append("SUB")
+
+            m.append("DUP")
+            m.append("DUP")
+
+            m.append("DEAREA")
+            m.append("AREA")
+
+            m.append("PUSH 1")
+            m.append("ALLOC")
+            m.append("FLIP")
+            m.append("PUSH 0")
+            m.append("FLIP")
+
+            m.append("WRITE")
+            m.append("YIELD")
+
+            return m
+
         """
         def await_stmt(self, node):
             m = Meta()
@@ -485,10 +563,8 @@ def parse(code):
             #print("=",node)
             target = node[0]
 
-            m.append("PUSH %i" % area)
-
             m.initvar(target.value)
-            m.append(["PUSH", target.value])
+            m.append(["__ADDR", target.value])
             m += varint(node[1])
             m.append("WRITE")
             return m

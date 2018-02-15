@@ -40,7 +40,7 @@ def optimize(text):
 
 
 def assemble(text):
-
+    print("Assembling...")
     if isinstance(text, str):
         text = text.split("\n")
     text_unopt = "\n".join(text)

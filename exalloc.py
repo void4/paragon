@@ -10,12 +10,13 @@ STATUS, GAS, MEM, IP, LENCODE, LENSTACK, LENMAP, LENMEMORY, CODE, STACK, MAP, ME
 NORMAL, FROZEN, VOLHALT, VOLRETURN, OOG, OOC, OOS, OOM, OOB, UOC = range(10)
 STATI = ["NORMAL", "FROZEN", "HALT", "OUTOFGAS", "OUTOFCODE", "OUTOFSTACK", "OUTOFMEMORY", "OUTOFBOUNDS", "UNKNOWNCODE"]
 
-HALT, RETURN, RUN, JUMP, JZ, PUSH, POP, DUP, FLIP, KEYSET, KEYGET, KEYDEL, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(28)
+HALT, RETURN, YIELD, RUN, JUMP, JZ, PUSH, POP, DUP, FLIP, KEYSET, KEYGET, KEYDEL, STACKLEN, MEMORYLEN, AREALEN, READ, WRITE, AREA, DEAREA, ALLOC, DEALLOC, ADD, SUB, NOT, MUL, DIV, MOD, SHA256 = range(29)
 
 REQS = [
     # Name, Instruction length, Required Stack Size, Stack effect
     ["HALT",1,0,0],
     ["RETURN",1,0,0],
+    ["YIELD",1,0,0],
     ["RUN",1,3,-3],
     ["JUMP",1,1,-1],
     ["JZ",1,2,-2],
@@ -113,14 +114,16 @@ def step(state):
         return s(state)
 
     instr = state[CODE][ip]
-    print(instr, ip)
-    print(state[STACK])
-    print(state[MEMORY])
-    print(state[MAP])
-
     reqs = REQS[instr]
+    """
     print("")
     print(reqs[0])
+    #print(instr, ip)
+    print(state[STACK])
+    print(state[MEMORY])
+    #print(state[MAP])
+    """
+
     #print(state[:-1])
     #for area in state[-1]:
     #    print(">",area)
@@ -207,6 +210,9 @@ def step(state):
         next()
     elif instr == RETURN:
         state[STATUS] = VOLRETURN
+        state[IP] = 0
+    elif instr == YIELD:
+        state[STATUS] = VOLRETURN
         next()
     elif instr == RUN:
         area, gas, mem = state[STACK][-3:]
@@ -219,8 +225,11 @@ def step(state):
                 child[MEM] = mem
 
             if child[STATUS] == NORMAL:
+                #print(">>>")
                 state[MEMORY][area] = step(state[MEMORY][area])
+                #print("<<<")
             else:
+                child[STATUS] = FROZEN
                 next()
         else:
             next()
@@ -238,6 +247,7 @@ def step(state):
         if len(state[STACK]) > 0:
             state[STACK] = state[STACK][:-1]
             state[MEM] += 1
+            next()
     elif instr == DUP:
         state[STACK].append(top())
         next()
@@ -311,7 +321,7 @@ def step(state):
     elif instr == DEALLOC:
         area, size = state[STACK][-2:]
         if validarea(area):
-            if len(state[MEMORY][area]) <= size:
+            if len(state[MEMORY][area]) >= size:
                 state[MEM] += size
                 state[MEMORY][area] = state[MEMORY][area][:-size]
                 next()
@@ -369,7 +379,7 @@ def run(state, gas=100, mem=100, debug=False):
         if debug:
             out = d(state)
             #print(out[STACK], out[MEMORY])
-            sleep(0.1)
+            #sleep(0.1)
     return state
 
 def inject(code):

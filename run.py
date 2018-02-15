@@ -9,11 +9,23 @@ while:
 
 """
 
+code = """
+
+def f(x):
+    return x+1
+
+yield 0
+while:
+    yield f<50,50>($read($memorylen-1, 0))
+
+"""
+
 from parser import parse
 state = parse(code)
 #print(list(code))
 from exalloc import run, annotated, d, s, STATUS, MEMORY, VOLRETURN
 
+print(len(state), "words")
 # Append an argument
 state = d(state)
 state[MEMORY].append([])
@@ -21,7 +33,7 @@ state = s(state)
 
 # Run state
 while True:
-    state = run(state, 10000, 10000, debug=True)
+    state = run(state, 10000, 10000, debug=False)
     if state[STATUS] == VOLRETURN:
         state = d(state)
         #if state[MEMORY][0][0] == 1:
